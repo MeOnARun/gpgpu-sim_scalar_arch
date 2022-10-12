@@ -1,4 +1,4 @@
-FROM ubuntu:14.04
+FROM ubuntu:14.04.5
 RUN apt-get update -y
 RUN apt-get install -y gcc g++ gcc-4.4 g++-4.4 make xutils bison flex doxygen python-pmw python-ply python-numpy libpng12-dev python-matplotlib doxygen graphviz git python-pmw python-ply python-numpy libpng12-dev libxi-dev libxmu-dev wget iproute2 expect xutils-dev libc-dev libgl1-mesa-dev libglu1-mesa-dev freeglut3-dev libboost-dev libboost-system-dev libboost-filesystem-dev libboost-all-dev mpich libcuda1-304 binutils-gold vim
 RUN wget http://developer.download.nvidia.com/compute/cuda/4_0/sdk/gpucomputingsdk_4.0.17_linux.run -P ~/.
