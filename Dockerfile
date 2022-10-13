@@ -8,6 +8,18 @@ RUN chmod 777 ~/gpucomputingsdk_4.0.17_linux.run ~/cudatoolkit_4.0.17_linux_64_u
 RUN echo "export CUDA_INSTALL_PATH=/usr/local/cuda" >> ~/.bashrc
 RUN echo "export NVIDIA_COMPUTE_SDK_LOCATION=~/NVIDIA_GPU_Computing_SDK" >> ~/.bashrc
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.4 50
+RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.4 50
 RUN git clone https://github.com/socal-ucr/gpgpu-sim_distribution ~/gpgpu-sim_distribution
 RUN git clone https://github.com/socal-ucr/ispass2009-benchmarks ~/ispass2009-benchmarks
 RUN expect ~/cuda.exp
+RUN cd ~/ispass2009-benchmarks/
+RUN make -f Makefile.ispass-2009 common
+RUN cd ~/common
+RUN make
+RUN cp ~/NVIDIA_GPU_Computing_SDK/C/lib/libcutil* ~/common/lib/linux
+RUN cd ~/NVIDIA_GPU_Computing_SDK/shared
+RUN make
+RUN cp ~/NVIDIA_GPU_Computing_SDK/shared/lib/libshrutil_x86_64.a ~/common/lib/linux/
+RUN cd ~/NVIDIA_GPU_Computing_SDK/
+RUN make
+RUN cd ~; mkdir .temp; mv cuda.exp cudatoolkit_4.0.17_linux_64_ubuntu10.10.run gpucomputingsdk_4.0.17_linux.run .temp
