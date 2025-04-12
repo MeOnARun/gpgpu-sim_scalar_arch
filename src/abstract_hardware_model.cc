@@ -1189,15 +1189,8 @@ void simt_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
 }
 
 void core_t::execute_warp_inst_t(warp_inst_t &inst, unsigned warpId) {
-  // CS534: check scalar flag
-  if (inst.scalar_flag == true) {
-    // scalar ALU & scalar MEM
-    // TODO: can use ptx_exec_inst? or need to write another one
-    // probably can execute only on first active lane?
-    // check status and update
-    // TODO: also use checkExecutionStatusAndUpdate?
-  }
-
+  // CS534: this is just for functional simulation? scalar unit is added in pipeline?
+  // no need to modify here?
   for (unsigned t = 0; t < m_warp_size; t++) {
     if (inst.active(t)) {
       if (warpId == (unsigned(-1))) warpId = inst.warp_id();

@@ -396,13 +396,17 @@ void shader_core_ctx::create_exec_pipeline() {
     }
   }
 
+  // CS534: TODO probably need to add ports to scalar ALU units
+
   m_operand_collector.init(m_config->gpgpu_num_reg_banks, this);
 
   m_num_function_units =
       m_config->gpgpu_num_sp_units + m_config->gpgpu_num_dp_units +
       m_config->gpgpu_num_sfu_units + m_config->gpgpu_num_tensor_core_units +
       m_config->gpgpu_num_int_units + m_config->m_specialized_unit_num +
-      1;  // sp_unit, sfu, dp, tensor, int, ldst_unit
+      1 + 
+      // CS534: add scalar ALU units
+      m_config->gpgpu_num_scalsp_units;  // sp_unit, sfu, dp, tensor, int, ldst_unit, scal_sp
   // m_dispatch_port = new enum pipeline_stage_name_t[ m_num_function_units ];
   // m_issue_port = new enum pipeline_stage_name_t[ m_num_function_units ];
 
@@ -454,6 +458,13 @@ void shader_core_ctx::create_exec_pipeline() {
   m_fu.push_back(m_ldst_unit);
   m_dispatch_port.push_back(ID_OC_MEM);
   m_issue_port.push_back(OC_EX_MEM);
+
+  // CS534: add scalar ALU units
+  for (unsigned k = 0; k < m_config->gpgpu_num_scalsp_units; k++) {
+    m_fu.push_back(new sp_unit(&m_pipeline_reg[EX_WB], m_config, this, k));
+    m_dispatch_port.push_back(ID_OC_SP);
+    m_issue_port.push_back(OC_EX_SP);
+  }
 
   assert(m_num_function_units == m_fu.size() and
          m_fu.size() == m_dispatch_port.size() and
@@ -1388,7 +1399,8 @@ void scheduler_unit::cycle() {
                          !(diff_exec_units && previous_issued_inst_exec_type ==
                                                   exec_unit_type_t::SP))
                   execute_on_SP = true;
-
+                
+                // CS534 TODO: add branch for scalar dispatch: issue_warp to m_scalsp_out
                 if (execute_on_INT || execute_on_SP) {
                   // Jin: special for CDP api
                   if (pI->m_is_cdp && !warp(warp_id).m_cdp_dummy) {
@@ -1807,10 +1819,18 @@ void shader_core_ctx::execute() {
     *(m_result_bus[i]) >>= 1;
   }
   for (unsigned n = 0; n < m_num_function_units; n++) {
+    // Notes: only ldst_unit have clock_multiplier not returning 1
+    // it means ldst_unit is operating with higher frequency (SM clock 1 cycle -> ldst_unit 2 cycles)
     unsigned multiplier = m_fu[n]->clock_multiplier();
+    // Notes: pipelined_simd_unit::cycle() for sp_unit & sfu_unit
+    //        move regs from a fifo to simulate the latency pipeline
     for (unsigned c = 0; c < multiplier; c++) m_fu[n]->cycle();
+    // Notes: update active lanes for this unit to shader_core_ctx->shader_core_stats->m_active_xx_lanes
+    // Here active lanes is the or of all insts in the m_pipeline_reg
     m_fu[n]->active_lanes_in_pipeline();
     unsigned issue_port = m_issue_port[n];
+    // Notes: register_set is a data structure that holds multiple warp_inst_t (insts)
+    // m_issue_port is set in create_exec_pipeline(), it is a fixed pipeline stage
     register_set &issue_inst = m_pipeline_reg[issue_port];
     unsigned reg_id;
     bool partition_issue =
@@ -1827,6 +1847,8 @@ void shader_core_ctx::execute() {
           (resbus = test_res_bus((*ready_reg)->latency)) != -1) {
         assert((*ready_reg)->latency < MAX_ALU_LATENCY);
         m_result_bus[resbus]->set((*ready_reg)->latency);
+        // Notes: update shader_core_stats according to inst op
+        // then, move issue_inst to m_dispatch_reg
         m_fu[n]->issue(issue_inst);
       } else if (!schedule_wb_now) {
         m_fu[n]->issue(issue_inst);
