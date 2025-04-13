@@ -149,6 +149,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SP],
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
+                                       &m_pipeline_reg[ID_OC_SP],
                                        i
                                      )
                 );
@@ -163,6 +164,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                                     &m_pipeline_reg[ID_OC_SP],
                                                     &m_pipeline_reg[ID_OC_SFU],
                                                     &m_pipeline_reg[ID_OC_MEM],
+                                                    &m_pipeline_reg[ID_OC_SP],
                                                     i,
                                                     config->gpgpu_scheduler_string
                                                   )
@@ -178,6 +180,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SP],
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
+                                       &m_pipeline_reg[ID_OC_SP],
                                        i
                                      )
                 );
@@ -192,6 +195,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SP],
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
+                                       &m_pipeline_reg[ID_OC_SP],
                                        i,
                                        config->gpgpu_scheduler_string
                                      )
@@ -265,7 +269,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
     // execute
     // CS534: add scalar alu units
     m_num_function_units = m_config->gpgpu_num_sp_units + m_config->gpgpu_num_sfu_units + 1
-      m_config->gpgpu_num_scalsp_units; // sp_unit, sfu, ldst_unit, scalsp
+      + m_config->gpgpu_num_scalsp_units; // sp_unit, sfu, ldst_unit, scalsp
     //m_dispatch_port = new enum pipeline_stage_name_t[ m_num_function_units ];
     //m_issue_port = new enum pipeline_stage_name_t[ m_num_function_units ];
     
@@ -290,7 +294,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
 
     // CS534: add scalar ALU units
     for (unsigned k = 0; k < m_config->gpgpu_num_scalsp_units; k++) {
-      m_fu.push_back(new sp_unit(&m_pipeline_reg[EX_WB], m_config, this, k));
+      m_fu.push_back(new scalsp_unit(&m_pipeline_reg[EX_WB], m_config, this ));
       m_dispatch_port.push_back(ID_OC_SP);
       m_issue_port.push_back(OC_EX_SP);
     }
@@ -1044,9 +1048,11 @@ swl_scheduler::swl_scheduler ( shader_core_stats* stats, shader_core_ctx* shader
                                register_set* sp_out,
                                register_set* sfu_out,
                                register_set* mem_out,
+                               // CS534: add port for scalar sp
+                               register_set* scalsp_out,
                                int id,
                                char* config_string )
-    : scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id )
+    : scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, scalsp_out, id )
 {
     unsigned m_prioritization_readin;
     int ret = sscanf( config_string,

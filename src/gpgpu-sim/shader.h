@@ -492,6 +492,8 @@ public:
                     register_set* sp_out,
                     register_set* sfu_out,
                     register_set* mem_out,
+                    // CS534: add port for scalar
+                    register_set* scalsp_out,
                     int id,
                     char* config_string );
 	virtual ~swl_scheduler () {}
