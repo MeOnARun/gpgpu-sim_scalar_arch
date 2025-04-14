@@ -727,7 +727,8 @@ public:
         memset(out, 0, sizeof(unsigned)); 
         memset(in, 0, sizeof(unsigned)); 
         is_vectorin=0; 
-        is_vectorout=0;
+        is_vectorout = 0; // not sure whether these can be used, so add new flag
+        scalar_flag = false; // CS534: scalar flag from scalar detector; Default to be vector.
         space = memory_space_t();
         cache_op = CACHE_UNDEFINED;
         latency = 1;
@@ -751,6 +752,8 @@ public:
     void set_num_operands(unsigned num) {num_operands=num;}
     void set_bar_id(unsigned id) {bar_id=id;}
     void set_bar_count(unsigned count) {bar_count=count;}
+    // CS534 TODO:
+    // Add is_scalar() and set_scalar() to encapsulate
 
     address_type pc;        // program counter address of instruction
     unsigned isize;         // size of instruction in bytes 
@@ -776,6 +779,7 @@ public:
     unsigned char is_vectorin;
     unsigned char is_vectorout;
     int pred; // predicate register number
+    bool scalar_flag; // CS534: scalar flag added
     int ar1, ar2;
     // register number for bank conflict evaluation
     struct {
