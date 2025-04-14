@@ -150,6 +150,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
                                        &m_pipeline_reg[ID_OC_SP],
+                                       &m_pipeline_reg[ID_OC_MEM],
                                        i
                                      )
                 );
@@ -165,6 +166,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                                     &m_pipeline_reg[ID_OC_SFU],
                                                     &m_pipeline_reg[ID_OC_MEM],
                                                     &m_pipeline_reg[ID_OC_SP],
+                                                    &m_pipeline_reg[ID_OC_MEM],
                                                     i,
                                                     config->gpgpu_scheduler_string
                                                   )
@@ -181,6 +183,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
                                        &m_pipeline_reg[ID_OC_SP],
+                                       &m_pipeline_reg[ID_OC_MEM],
                                        i
                                      )
                 );
@@ -196,6 +199,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
                                        &m_pipeline_reg[ID_OC_SP],
+                                       &m_pipeline_reg[ID_OC_MEM],
                                        i,
                                        config->gpgpu_scheduler_string
                                      )
@@ -269,7 +273,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
     // execute
     // CS534: add scalar alu units
     m_num_function_units = m_config->gpgpu_num_sp_units + m_config->gpgpu_num_sfu_units + 1
-      + m_config->gpgpu_num_scalsp_units; // sp_unit, sfu, ldst_unit, scalsp
+      + m_config->gpgpu_num_scalsp_units + m_config->gpgpu_num_scalmem_units; // sp_unit, sfu, ldst_unit, scalsp, scalmem
     //m_dispatch_port = new enum pipeline_stage_name_t[ m_num_function_units ];
     //m_issue_port = new enum pipeline_stage_name_t[ m_num_function_units ];
     
@@ -297,6 +301,13 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
       m_fu.push_back(new scalsp_unit(&m_pipeline_reg[EX_WB], m_config, this ));
       m_dispatch_port.push_back(ID_OC_SP);
       m_issue_port.push_back(OC_EX_SP);
+    }
+
+    // CS534: add scalar memory units
+    for (unsigned k = 0; k < m_config->gpgpu_num_scalmem_units; k++) {
+      m_fu.push_back(new scalmem_unit(m_icnt, m_mem_fetch_allocator, this, &m_operand_collector, m_scoreboard, config, mem_config, stats, shader_id, tpc_id));
+      m_dispatch_port.push_back(ID_OC_MEM);
+      m_issue_port.push_back(OC_EX_MEM);
     }
 
     
@@ -1050,9 +1061,12 @@ swl_scheduler::swl_scheduler ( shader_core_stats* stats, shader_core_ctx* shader
                                register_set* mem_out,
                                // CS534: add port for scalar sp
                                register_set* scalsp_out,
+                               // CS534: add port for scalar mem
+                               register_set* scalmem_out,
                                int id,
                                char* config_string )
-    : scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, scalsp_out, id )
+    : scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out,
+      scalsp_out, scalmem_out, id )
 {
     unsigned m_prioritization_readin;
     int ret = sscanf( config_string,
@@ -1819,12 +1833,15 @@ void ldst_unit::issue( register_set &reg_set )
 */
 void ldst_unit::cycle()
 {
+  // Notes: memory pipeline (different mem type all in ldst_unit)
    writeback();
    m_operand_collector->step();
    for( unsigned stage=0; (stage+1)<m_pipeline_depth; stage++ ) 
        if( m_pipeline_reg[stage]->empty() && !m_pipeline_reg[stage+1]->empty() )
             move_warp(m_pipeline_reg[stage], m_pipeline_reg[stage+1]);
 
+   // Notes: distinguish different kinds of memory accesses
+   //   and put mem_fetch into corresponding cache unit etc. m_L1C (an interface for memory access)
    if( !m_response_fifo.empty() ) {
        mem_fetch *mf = m_response_fifo.front();
        if (mf->istexture()) {
@@ -1877,10 +1894,13 @@ void ldst_unit::cycle()
    enum mem_stage_stall_type rc_fail = NO_RC_FAIL;
    mem_stage_access_type type;
    bool done = true;
+   // Notes: check whether different type of memory access is stalled
+   //   done is a flag for stall (true: no stall, false: stall)
    done &= shared_cycle(pipe_reg, rc_fail, type);
    done &= constant_cycle(pipe_reg, rc_fail, type);
    done &= texture_cycle(pipe_reg, rc_fail, type);
    done &= memory_cycle(pipe_reg, rc_fail, type);
+   // Notes: mem stage stall type
    m_mem_rc = rc_fail;
 
    if (!done) { // log stall types and return
