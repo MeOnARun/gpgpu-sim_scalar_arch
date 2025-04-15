@@ -229,15 +229,28 @@ void warp_inst_t::generate_mem_accesses()
             std::map<unsigned,std::map<new_addr_type,unsigned> > bank_accs; // bank -> word address -> access count
 
             // step 1: compute accesses to words in banks
+            // CS534: for scalar mem inst
+            bool scalar_access_processed = false;
             for( unsigned thread=subwarp*subwarp_size; thread < (subwarp+1)*subwarp_size; thread++ ) {
                 if( !active(thread) ) 
                     continue;
+                // CS534: scalar mem req, only need to do 1 access for all threads
+                //   this bank_accs is used to simulate the delay in m_pipeline_regs
+                if (scalar_flag & scalar_access_processed)
+                    break;
+                // Notes: addr for access stored when execute_inst (memreqaddr is an array)
+                //   Only atomic local mem reqs have multiple addresses (set in checkExecutionStatusAndUpdate)
+                //   So here only need to consider memreqaddr[0]
                 new_addr_type addr = m_per_scalar_thread[thread].memreqaddr[0];
                 //FIXME: deferred allocation of shared memory should not accumulate across kernel launches
                 //assert( addr < m_config->gpgpu_shmem_size ); 
+                // Notes: find out which bank it is accessing
                 unsigned bank = m_config->shmem_bank_func(addr);
+                // Notes: find out which word it is accessing
                 new_addr_type word = line_size_based_tag_func(addr,m_config->WORD_SIZE);
                 bank_accs[bank][word]++;
+                // CS534: update scalar processed flag
+                scalar_access_processed = true;
             }
 
             if (m_config->shmem_limited_broadcast) {
@@ -327,6 +340,9 @@ void warp_inst_t::generate_mem_accesses()
         abort();
     }
 
+    // Notes: only tex_space/const_space will execute this part
+    // CS534: scalar processed flag
+    bool scalar_access_processed = false;
     if( cache_block_size ) {
         assert( m_accessq.empty() );
         mem_access_byte_mask_t byte_mask; 
@@ -335,12 +351,18 @@ void warp_inst_t::generate_mem_accesses()
         for( unsigned thread=0; thread < m_config->warp_size; thread++ ) {
             if( !active(thread) ) 
                 continue;
+            // CS534: scalar mem req (const / tex), only need to do 1 access for all threads
+            //   requests will be put into m_accessq to process mem reqs
+            if (scalar_flag & scalar_access_processed)
+                break;
             new_addr_type addr = m_per_scalar_thread[thread].memreqaddr[0];
             unsigned block_address = line_size_based_tag_func(addr,cache_block_size);
             accesses[block_address].set(thread);
             unsigned idx = addr-block_address; 
             for( unsigned i=0; i < data_size; i++ ) 
                 byte_mask.set(idx+i);
+            // CS534: update scalar processed flag
+            scalar_access_processed = true;
         }
         for( a=accesses.begin(); a != accesses.end(); ++a ) 
             m_accessq.push_back( mem_access_t(access_type,a->first,cache_block_size,is_write,a->second,byte_mask) );
@@ -788,6 +810,7 @@ void core_t::execute_warp_inst_t(warp_inst_t &inst, unsigned warpId)
 {
     // CS534: this is just for functional simulation? scalar unit is added in pipeline?
     // no need to modify here?
+    // only updaete 1 thread of results (maybe will affect power simulation)
     for ( unsigned t=0; t < m_warp_size; t++ ) {
         if( inst.active(t) ) {
             if(warpId==(unsigned (-1)))

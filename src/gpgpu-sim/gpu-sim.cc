@@ -360,10 +360,14 @@ void shader_core_config::reg_options(class OptionParser * opp)
     option_parser_register(opp, "-gpgpu_num_mem_units", OPT_INT32, &gpgpu_num_mem_units,
                             "Number if ldst units (default=1) WARNING: not hooked up to anything",
                              "1");
-   // CS534: add scalar alu units
-   option_parser_register(opp, "-gpgpu_num_scalsp_units", OPT_INT32, &gpgpu_num_scalsp_units,
-      "Number of scalar SP units (default=2)",
-      "2");                          
+    // CS534: add scalar alu units
+    option_parser_register(opp, "-gpgpu_num_scalsp_units", OPT_INT32, &gpgpu_num_scalsp_units,
+                             "Number of scalar SP units (default=2)",
+                             "2");  
+    // CS534: add scalar mem units
+    option_parser_register(opp, "-gpgpu_num_scalmem_units", OPT_INT32, &gpgpu_num_scalmem_units,
+                             "Number of scalar mem units (default=1)",
+                             "1");
     option_parser_register(opp, "-gpgpu_scheduler", OPT_CSTR, &gpgpu_scheduler_string,
                                 "Scheduler configuration: < lrr | gto | two_level_active > "
                                 "If two_level_active:<num_active_warps>:<inner_prioritization>:<outer_prioritization>"
