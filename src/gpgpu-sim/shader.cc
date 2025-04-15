@@ -4441,6 +4441,36 @@ bool opndcoll_rfu_t::collector_unit_t::allocate(register_set *pipeline_reg_set,
   return false;
 }
 
+// CS 534: This function checks if all operands are the same.
+bool opndcoll_rfu_t::collector_unit_t::all_operands_same() const {
+
+  // 1. Identify the first valid operand
+  int first_reg_num = -1;
+  for (unsigned op = 0; op < MAX_REG_OPERANDS; op++) {
+      if (!m_src_op[op].is_valid()) 
+          continue;
+      first_reg_num = m_src_op[op].get_reg_num();
+      break;
+  }
+  // If no valid operand found or only one operand is valid, treat as "all same"
+  // (e.g., no operands or only one operand)
+  if (first_reg_num < 0) return true;
+
+  // 2. Compare all subsequent valid operands with the first
+  //    If any operand is different, return false
+  //    Otherwise, return true
+  for (unsigned op = 0; op < MAX_REG_OPERANDS; op++) {
+      if (!m_src_op[op].is_valid()) 
+          continue;
+      if (m_src_op[op].get_reg_num() != first_reg_num) {
+          return false;
+      }
+  }
+  
+  return true;
+}
+
+
 void opndcoll_rfu_t::collector_unit_t::dispatch() {
   assert(m_not_ready.none());
   m_output_register->move_in(m_sub_core_model, m_reg_id, m_warp);
