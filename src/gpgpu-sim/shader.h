@@ -300,16 +300,22 @@ enum concrete_scheduler
 
 class scheduler_unit { //this can be copied freely, so can be used in std containers.
 public:
+    // CS534: initialized add ports for scalar
     scheduler_unit(shader_core_stats* stats, shader_core_ctx* shader, 
                    Scoreboard* scoreboard, simt_stack** simt, 
                    std::vector<shd_warp_t>* warp, 
                    register_set* sp_out,
                    register_set* sfu_out,
                    register_set* mem_out,
+                   // CS534: add port for scalar
+                   register_set* scalsp_out,
+                   // CS534: scalar mem
+                   register_set* scalmem_out,
                    int id) 
         : m_supervised_warps(), m_stats(stats), m_shader(shader),
         m_scoreboard(scoreboard), m_simt_stack(simt), /*m_pipeline_reg(pipe_regs),*/ m_warp(warp),
-        m_sp_out(sp_out),m_sfu_out(sfu_out),m_mem_out(mem_out), m_id(id){}
+        m_sp_out(sp_out),m_sfu_out(sfu_out),m_mem_out(mem_out),m_scalsp_out(scalsp_out),
+        m_scalmem_out(scalmem_out), m_id(id){}
     virtual ~scheduler_unit(){}
     virtual void add_supervised_warp_id(int i) {
         m_supervised_warps.push_back(&warp(i));
@@ -383,6 +389,10 @@ protected:
     register_set* m_sp_out;
     register_set* m_sfu_out;
     register_set* m_mem_out;
+    // CS534: add port for scalar ALU
+    register_set* m_scalsp_out;
+    // CS534: add port for scalar mem
+    register_set* m_scalmem_out;
 
     int m_id;
 };
@@ -395,8 +405,13 @@ public:
                     register_set* sp_out,
                     register_set* sfu_out,
                     register_set* mem_out,
+                    // CS534: add port for scalar
+                    register_set* scalsp_out,
+                    // CS534: add port for scalar mem
+                    register_set* scalmem_out,
                     int id )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ){}
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out,
+        scalsp_out, scalmem_out, id ){}
 	virtual ~lrr_scheduler () {}
 	virtual void order_warps ();
     virtual void done_adding_supervised_warps() {
@@ -412,8 +427,13 @@ public:
                     register_set* sp_out,
                     register_set* sfu_out,
                     register_set* mem_out,
+                    // CS534: add port for scalar
+                    register_set* scalsp_out,
+                    // CS534: add port for scalar mem
+                    register_set* scalmem_out,
                     int id )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ){}
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out,
+        scalsp_out, scalmem_out, id ){}
 	virtual ~gto_scheduler () {}
 	virtual void order_warps ();
     virtual void done_adding_supervised_warps() {
@@ -431,9 +451,14 @@ public:
                           register_set* sp_out,
                           register_set* sfu_out,
                           register_set* mem_out,
+                          // CS534: add port for scalar
+                          register_set* scalsp_out,
+                          // CS534: add port for scalar mem
+                          register_set* scalmem_out,
                           int id,
                           char* config_str )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ),
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out,
+        scalsp_out, scalmem_out, id ),
 	  m_pending_warps() 
     {
         unsigned inner_level_readin;
@@ -481,6 +506,10 @@ public:
                     register_set* sp_out,
                     register_set* sfu_out,
                     register_set* mem_out,
+                    // CS534: add port for scalar
+                    register_set* scalsp_out,
+                    // CS534: add port for scalar mem
+                    register_set* scalmem_out,
                     int id,
                     char* config_string );
 	virtual ~swl_scheduler () {}
@@ -1068,6 +1097,27 @@ public:
     virtual void issue( register_set& source_reg );
 };
 
+// CS534: Add scalar sp unit
+class scalsp_unit : public pipelined_simd_unit
+{
+public:
+    scalsp_unit( register_set* result_port, const shader_core_config *config, shader_core_ctx *core );
+    virtual bool can_issue( const warp_inst_t &inst ) const
+    {
+        switch(inst.op) {
+        case SFU_OP: return false; 
+        case LOAD_OP: return false;
+        case STORE_OP: return false;
+        case MEMORY_BARRIER_OP: return false;
+        default: break;
+        }
+        return pipelined_simd_unit::can_issue(inst);
+    }
+    virtual void active_lanes_in_pipeline();
+    virtual void issue( register_set& source_reg );
+    virtual unsigned clock_multiplier() const { return 3; } // in the paper, scalar sp is 3x faster
+};
+
 class simt_core_cluster;
 class shader_memory_interface;
 class shader_core_mem_fetch_allocator;
@@ -1183,6 +1233,20 @@ protected:
    // for debugging
    unsigned long long m_last_inst_gpu_sim_cycle;
    unsigned long long m_last_inst_gpu_tot_sim_cycle;
+};
+
+// CS534: Add scalar mem unit
+class scalmem_unit: public ldst_unit {
+public:
+    scalmem_unit( mem_fetch_interface *icnt,
+               shader_core_mem_fetch_allocator *mf_allocator,
+               shader_core_ctx *core, 
+               opndcoll_rfu_t *operand_collector,
+               Scoreboard *scoreboard,
+               const shader_core_config *config, 
+               const memory_config *mem_config,  
+               class shader_core_stats *stats, 
+               unsigned sid, unsigned tpc );
 };
 
 enum pipeline_stage_name_t {
@@ -1307,6 +1371,10 @@ struct shader_core_config : public core_config
     int gpgpu_num_sp_units;
     int gpgpu_num_sfu_units;
     int gpgpu_num_mem_units;
+    // CS534: add scalar ALU units
+    int gpgpu_num_scalsp_units;
+    // CS534: add scalar mem units
+    int gpgpu_num_scalmem_units;
 
     //Shader core resources
     unsigned gpgpu_shader_registers;
