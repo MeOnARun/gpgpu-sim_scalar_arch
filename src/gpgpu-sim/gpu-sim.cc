@@ -366,8 +366,8 @@ void shader_core_config::reg_options(class OptionParser * opp)
                              "2");  
     // CS534: add scalar mem units
     option_parser_register(opp, "-gpgpu_num_scalmem_units", OPT_INT32, &gpgpu_num_scalmem_units,
-                             "Number of scalar mem units (default=2)",
-                             "2");
+                             "Number of scalar mem units (default=1)",
+                             "1");
     option_parser_register(opp, "-gpgpu_scheduler", OPT_CSTR, &gpgpu_scheduler_string,
                                 "Scheduler configuration: < lrr | gto | two_level_active > "
                                 "If two_level_active:<num_active_warps>:<inner_prioritization>:<outer_prioritization>"
