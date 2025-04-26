@@ -98,6 +98,39 @@ union ptx_reg_t {
    operator unsigned short() { return u16;}
    operator unsigned char() { return u8;}
    operator unsigned long long() { return u64;}
+   
+   // CS534: added for scalar detector
+   bool ptx_reg_eq(ptx_reg_t b, unsigned type)
+   {
+      switch(type) {
+         case S8_TYPE:
+         case U8_TYPE:
+         case B8_TYPE:
+            return this->s8 == b.s8;
+         case S16_TYPE:
+         case U16_TYPE:
+         case B16_TYPE:
+            return this->s16 == b.s16;
+         case S32_TYPE:
+         case U32_TYPE:
+         case B32_TYPE:
+            return this->s32 == b.s32;
+         case S64_TYPE:
+         case U64_TYPE:
+         case B64_TYPE:
+            return this->s64 == b.s64;
+         case F16_TYPE:
+            return this->f16 == b.f16;
+         case F32_TYPE:
+            return this->f32 == b.f32;
+         case F64_TYPE:
+         case FF64_TYPE:
+            return this->f64 == b.f64;
+         default:
+            assert(0);
+            return false;
+      }
+   }
 
    void mask_and( unsigned ms, unsigned ls )
    {

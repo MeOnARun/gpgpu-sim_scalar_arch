@@ -2489,6 +2489,7 @@ void shader_core_ctx::cycle()
 	m_stats->shader_cycles[m_sid]++;
     writeback();
     execute();
+    // Notes: Empty. Actual read is in ldst_unit::cycle()->step()->allocate_cu()->allocate()
     read_operands();
     issue();
     decode();
@@ -3094,6 +3095,7 @@ void opndcoll_rfu_t::allocate_cu( unsigned port_num )
 void opndcoll_rfu_t::allocate_reads()
 {
    // process read requests that do not have conflicts
+   // Note: choose ops to read
    std::list<op_t> allocated = m_arbiter.allocate_reads();
    std::map<unsigned,op_t> read_ops;
    for( std::list<op_t>::iterator r=allocated.begin(); r!=allocated.end(); r++ ) {
@@ -3105,6 +3107,7 @@ void opndcoll_rfu_t::allocate_reads()
       read_ops[bank] = rr;
    }
    std::map<unsigned,op_t>::iterator r;
+   // Note: update cu state (m_not_ready)
    for(r=read_ops.begin();r!=read_ops.end();++r ) {
       op_t &op = r->second;
       unsigned cu = op.get_oc_id();

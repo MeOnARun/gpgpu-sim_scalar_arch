@@ -29,12 +29,15 @@
 
 #include "abstract_hardware_model.h"
 #include "cuda-sim/memory.h"
+#include "cuda-sim/opcodes.h"
 #include "cuda-sim/ptx_ir.h"
 #include "cuda-sim/ptx-stats.h"
 #include "cuda-sim/cuda-sim.h"
+#include "cuda-sim/ptx_sim.h"
 #include "gpgpu-sim/gpu-sim.h"
 #include "option_parser.h"
 #include <algorithm>
+#include <vector>
 
 unsigned mem_access_t::sm_next_access_uid = 0;   
 unsigned warp_inst_t::sm_next_uid = 0;
@@ -806,8 +809,95 @@ void simt_stack::update( simt_mask_t &thread_done, addr_vector_t &next_pc, addre
     }
 }
 
+// CS534: scalar detector
+bool scalar_detector_helper(const ptx_instruction *pI, warp_inst_t& inst, ptx_thread_info **thread,
+  unsigned m_warp_size, unsigned int warpId, unsigned int num_src)
+{
+    // get src
+    assert(num_src >= 1 && num_src <= 3);
+    std::vector<operand_info> srcs;
+    srcs.push_back(pI->src1());
+    if (num_src > 1) {
+      srcs.push_back(pI->src2());
+    }
+    if (num_src > 2) {
+      srcs.push_back(pI->src3());
+    }
+    // check each thread
+    std::vector<ptx_reg_t> ref_vals;
+    std::vector<bool> ref_set;
+    for (unsigned i = 0; i < num_src; i++) {
+      ref_set.push_back(false);
+    }
+    for (unsigned t = 0; t < m_warp_size; t++) {
+      if (!inst.active(t)) continue;
+      unsigned tid = m_warp_size * warpId + t;
+      for (int i = 0; i < num_src; i++) {
+        ptx_reg_t val = thread[tid]->get_operand_value(srcs[i], srcs[i], pI->get_type(), thread[tid], 1);
+        if (!ref_set[i]) {
+          ref_vals.push_back(val);
+          ref_set[i] = true;
+        }
+        else if (!val.ptx_reg_eq(ref_vals[i], pI->get_type())) {
+          // not scalar, directly return false
+          return false;
+        }
+      }
+    }
+    return true;
+}
+void core_t::scalar_detector(warp_inst_t &inst, unsigned warpId)
+{
+    // get each operands value
+    // Note: the src number is not set at the parsing time, so cannot get it here
+    //   in actual functional model, collecting value is also hard coded
+    //   here we set scalar default to false, and hard code src numbers for some insts
+    //   (e.g. add) for 1st test
+    const ptx_instruction *pI = NULL;
+    for (unsigned t = 0; t < m_warp_size; t++) {
+      if (!inst.active(t)) continue;
+      // only get the first active thread
+      unsigned tid = m_warp_size * warpId + t;
+      addr_t pc = m_thread[tid]->get_pc();
+      pI = m_thread[tid]->get_inst(pc);
+      assert(pc == inst.pc);
+      assert(pI);
+      break;
+    }
+    // empty warp: scalar flag true
+    if (pI == NULL) {
+      inst.scalar_flag = true;
+      return;
+    }
+    // get the opcode
+    int opcode = pI->get_opcode();
+    bool is_scalar = false;
+    switch (opcode) {
+      // 2src insts
+      case ADD_OP:
+        is_scalar = scalar_detector_helper(pI, inst, m_thread, m_warp_size, warpId, 2);
+        break;
+      // exclude from scalar detection
+      default:
+        is_scalar = false;
+        break;
+    }
+
+    if (is_scalar) {
+      printf("[SCALAR DETECTED] opcode = %s, PC = %u, warp = %u\n",
+        pI->get_opcode_cstr(), pI->get_PC(), warpId);
+    }
+
+    // set the scalar flag
+    inst.scalar_flag = is_scalar;
+    return;
+}
+
 void core_t::execute_warp_inst_t(warp_inst_t &inst, unsigned warpId)
 {
+    // CS534: actual scalar detector need to be add here
+    // value of operands will be collected inside the execute_warp_inst_t function
+    scalar_detector(inst, warpId);
     // CS534: this is just for functional simulation? scalar unit is added in pipeline?
     // no need to modify here?
     // only updaete 1 thread of results (maybe will affect power simulation)
