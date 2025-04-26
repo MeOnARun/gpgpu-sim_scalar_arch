@@ -3188,33 +3188,6 @@ bool opndcoll_rfu_t::collector_unit_t::allocate( register_set* pipeline_reg_set,
    return false;
 }
 
-//CS 534 scalar detector part 1: check if all the operands collected in the collector unit are the same
-bool opndcoll_rfu_t::collector_unit_t::all_operands_same() const {
-
-    // 1. Identify the first valid operand
-    int first_reg_num = -1;
-    for (unsigned op = 0; op < MAX_REG_OPERANDS; op++) {
-        if (!m_src_op[op].is_valid()) 
-            continue;
-        first_reg_num = m_src_op[op].get_reg_num();
-        break;
-    }
-    // If no valid operand found or only one operand is valid, treat as "all same"
-    if (first_reg_num < 0) return true;
-
-    // 2. Compare all subsequent valid operands with the first
-    for (unsigned op = 0; op < MAX_REG_OPERANDS; op++) {
-        if (!m_src_op[op].is_valid()) 
-            continue;
-        if (m_src_op[op].get_reg_num() != first_reg_num) {
-            return false;
-        }
-    }
-
-    // If we can't found a mismatch, return true to indicate the scalar condition
-    return true;
-}
-
 void opndcoll_rfu_t::collector_unit_t::dispatch()
 {
    assert( m_not_ready.none() );
