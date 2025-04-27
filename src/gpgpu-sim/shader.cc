@@ -26,6 +26,7 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <cstdio>
 #include <float.h>
 #include "shader.h"
 #include "gpu-sim.h"
@@ -149,7 +150,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SP],
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
-                                       //&m_pipeline_reg[ID_OC_SP],
+                                       // CS534: add issue stage for scalsp
+                                       &m_pipeline_reg[ID_OC_SCALSP],
                                        //&m_pipeline_reg[ID_OC_MEM],
                                        i
                                      )
@@ -165,7 +167,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                                     &m_pipeline_reg[ID_OC_SP],
                                                     &m_pipeline_reg[ID_OC_SFU],
                                                     &m_pipeline_reg[ID_OC_MEM],
-                                                    //&m_pipeline_reg[ID_OC_SP],
+                                                    // CS534: add issue stage for scalsp
+                                                    &m_pipeline_reg[ID_OC_SCALSP],
                                                     //&m_pipeline_reg[ID_OC_MEM],
                                                     i,
                                                     config->gpgpu_scheduler_string
@@ -182,7 +185,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SP],
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
-                                       //&m_pipeline_reg[ID_OC_SP],
+                                       // CS534: add issue stage for scalsp
+                                       &m_pipeline_reg[ID_OC_SCALSP],
                                        //&m_pipeline_reg[ID_OC_MEM],
                                        i
                                      )
@@ -198,7 +202,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SP],
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
-                                       //&m_pipeline_reg[ID_OC_SP],
+                                       // CS534: add issue stage for scalsp
+                                       &m_pipeline_reg[ID_OC_SCALSP],
                                        //&m_pipeline_reg[ID_OC_MEM],
                                        i,
                                        config->gpgpu_scheduler_string
@@ -271,9 +276,9 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
     m_operand_collector.init( m_config->gpgpu_num_reg_banks, this );
     
     // execute
-    // TEMPNO CS534: add scalar alu units
-    m_num_function_units = m_config->gpgpu_num_sp_units + m_config->gpgpu_num_sfu_units + 1;
-      //+ m_config->gpgpu_num_scalsp_units + m_config->gpgpu_num_scalmem_units; // sp_unit, sfu, ldst_unit, scalsp, scalmem
+    // CS534: add scalar alu units
+    m_num_function_units = m_config->gpgpu_num_sp_units + m_config->gpgpu_num_sfu_units + 1
+      + m_config->gpgpu_num_scalsp_units; //+ m_config->gpgpu_num_scalmem_units; // sp_unit, sfu, ldst_unit, scalsp, scalmem
     //m_dispatch_port = new enum pipeline_stage_name_t[ m_num_function_units ];
     //m_issue_port = new enum pipeline_stage_name_t[ m_num_function_units ];
     
@@ -296,15 +301,16 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
     m_dispatch_port.push_back(ID_OC_MEM);
     m_issue_port.push_back(OC_EX_MEM);
 
-    // TEMPNO CS534: add scalar ALU units
-    /*for (unsigned k = 0; k < m_config->gpgpu_num_scalsp_units; k++) {
-      m_fu.push_back(new scalsp_unit(&m_pipeline_reg[EX_WB], m_config, this ));
-      m_dispatch_port.push_back(ID_OC_SP);
+    // CS534: add scalar ALU units
+    for (unsigned k = 0; k < m_config->gpgpu_num_scalsp_units; k++) {
+      // here we use the same class as sp_unit now (adjust latency etc later)
+      m_fu.push_back(new sp_unit(&m_pipeline_reg[EX_WB], m_config, this, true));
+      m_dispatch_port.push_back(ID_OC_SCALSP);
       m_issue_port.push_back(OC_EX_SP);
     }
 
     // TEMPNO CS534: add scalar memory units
-    for (unsigned k = 0; k < m_config->gpgpu_num_scalmem_units; k++) {
+    /*for (unsigned k = 0; k < m_config->gpgpu_num_scalmem_units; k++) {
       m_fu.push_back(new scalmem_unit(m_icnt, m_mem_fetch_allocator, this, &m_operand_collector, m_scoreboard, config, mem_config, stats, shader_id, tpc_id));
       m_dispatch_port.push_back(ID_OC_MEM);
       m_issue_port.push_back(OC_EX_MEM);
@@ -880,7 +886,17 @@ void scheduler_unit::cycle()
                         } else {
                             bool sp_pipe_avail = m_sp_out->has_free();
                             bool sfu_pipe_avail = m_sfu_out->has_free();
-                            if( sp_pipe_avail && (pI->op != SFU_OP) ) {
+                            // CS534: scalar pipeline
+                            bool scalsp_pipe_avail = m_scalsp_out->has_free();
+                            // CS 534: prefer scalar pipeline
+                            if (scalsp_pipe_avail && (pI->op == SCAL_ALU_OP)) {
+                              m_shader->issue_warp(*m_scalsp_out,pI,active_mask,warp_id);
+                              issued++;
+                              issued_inst=true;
+                              warp_inst_issued = true;
+                              printf("[SCALAR SP DISPATH] warp_id %d, opcode %d\n", warp_id, pI->op);
+                            }
+                            else if( sp_pipe_avail && (pI->op != SFU_OP) ) {
                                 // always prefer SP pipe for operations that can use both SP and SFU pipelines
                                 m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id);
                                 issued++;
@@ -1059,14 +1075,14 @@ swl_scheduler::swl_scheduler ( shader_core_stats* stats, shader_core_ctx* shader
                                register_set* sp_out,
                                register_set* sfu_out,
                                register_set* mem_out,
-                               // TEMPNO CS534: add port for scalar sp
-                               //register_set* scalsp_out,
+                               // add port for scalar sp
+                               register_set* scalsp_out,
                                // TEMPNO CS534: add port for scalar mem
                                //register_set* scalmem_out,
                                int id,
                                char* config_string )
     : scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out,
-      /*scalsp_out, scalmem_out,*/ id )
+      scalsp_out, /*scalmem_out,*/ id )
 {
     unsigned m_prioritization_readin;
     int ret = sscanf( config_string,
@@ -1529,10 +1545,11 @@ void sfu::active_lanes_in_pipeline(){
 	m_core->incfumemactivelanes_stat(active_count);
 }
 
-sp_unit::sp_unit( register_set* result_port, const shader_core_config *config,shader_core_ctx *core)
+sp_unit::sp_unit( register_set* result_port, const shader_core_config *config,shader_core_ctx *core, bool is_scalar)
     : pipelined_simd_unit(result_port,config,config->max_sp_latency,core)
 { 
     m_name = "SP "; 
+    m_is_scalsp = is_scalar;
 }
 
 void sp_unit :: issue(register_set& source_reg)

@@ -891,6 +891,10 @@ void core_t::scalar_detector(warp_inst_t &inst, unsigned warpId)
 
     // set the scalar flag
     inst.scalar_flag = is_scalar;
+    // change the op type if scalar
+    if (is_scalar) {
+      inst.op = SCAL_ALU_OP;
+    }
     return;
 }
 
@@ -899,9 +903,6 @@ void core_t::execute_warp_inst_t(warp_inst_t &inst, unsigned warpId)
     // CS534: actual scalar detector need to be add here
     // value of operands will be collected inside the execute_warp_inst_t function
     scalar_detector(inst, inst.warp_id());
-    // CS534: this is just for functional simulation? scalar unit is added in pipeline?
-    // no need to modify here?
-    // only updaete 1 thread of results (maybe will affect power simulation)
     for ( unsigned t=0; t < m_warp_size; t++ ) {
         if( inst.active(t) ) {
             if(warpId==(unsigned (-1)))
@@ -911,6 +912,11 @@ void core_t::execute_warp_inst_t(warp_inst_t &inst, unsigned warpId)
             
             //virtual function
             checkExecutionStatusAndUpdate(inst,t,tid);
+            if (inst.scalar_flag) {
+                printf("[SCALAR EXEC] PC = %u, warp = %u, only execute lane %d\n",
+                    inst.pc, warpId, t);
+                break; // CS534: scalar inst only execute the first active thread
+            }
         }
     } 
 }

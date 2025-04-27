@@ -83,7 +83,9 @@ enum uarch_op_t {
    BARRIER_OP,
    MEMORY_BARRIER_OP,
    CALL_OPS,
-   RET_OPS
+   RET_OPS,
+   // CS534: scalar sp type
+   SCAL_ALU_OP
 };
 typedef enum uarch_op_t op_type;
 
