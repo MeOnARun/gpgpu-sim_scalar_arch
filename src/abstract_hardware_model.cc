@@ -232,12 +232,12 @@ void warp_inst_t::generate_mem_accesses()
             std::map<unsigned,std::map<new_addr_type,unsigned> > bank_accs; // bank -> word address -> access count
 
             // step 1: compute accesses to words in banks
-            // CS534: for scalar mem inst
-            bool scalar_access_processed = false;
+            // TEMPNO CS534: for scalar mem inst
+            /*bool scalar_access_processed = false;
             for( unsigned thread=subwarp*subwarp_size; thread < (subwarp+1)*subwarp_size; thread++ ) {
                 if( !active(thread) ) 
                     continue;
-                // CS534: scalar mem req, only need to do 1 access for all threads
+                // TEMPNO CS534: scalar mem req, only need to do 1 access for all threads
                 //   this bank_accs is used to simulate the delay in m_pipeline_regs
                 if (scalar_flag & scalar_access_processed)
                     break;
@@ -252,9 +252,9 @@ void warp_inst_t::generate_mem_accesses()
                 // Notes: find out which word it is accessing
                 new_addr_type word = line_size_based_tag_func(addr,m_config->WORD_SIZE);
                 bank_accs[bank][word]++;
-                // CS534: update scalar processed flag
+                // TEMPNO CS534: update scalar processed flag
                 scalar_access_processed = true;
-            }
+            }*/
 
             if (m_config->shmem_limited_broadcast) {
                 // step 2: look for and select a broadcast bank/word if one occurs
@@ -344,8 +344,8 @@ void warp_inst_t::generate_mem_accesses()
     }
 
     // Notes: only tex_space/const_space will execute this part
-    // CS534: scalar processed flag
-    bool scalar_access_processed = false;
+    // TEMPNO CS534: scalar processed flag
+    /*bool scalar_access_processed = false;
     if( cache_block_size ) {
         assert( m_accessq.empty() );
         mem_access_byte_mask_t byte_mask; 
@@ -354,7 +354,7 @@ void warp_inst_t::generate_mem_accesses()
         for( unsigned thread=0; thread < m_config->warp_size; thread++ ) {
             if( !active(thread) ) 
                 continue;
-            // CS534: scalar mem req (const / tex), only need to do 1 access for all threads
+            // TEMPNO CS534: scalar mem req (const / tex), only need to do 1 access for all threads
             //   requests will be put into m_accessq to process mem reqs
             if (scalar_flag & scalar_access_processed)
                 break;
@@ -364,12 +364,12 @@ void warp_inst_t::generate_mem_accesses()
             unsigned idx = addr-block_address; 
             for( unsigned i=0; i < data_size; i++ ) 
                 byte_mask.set(idx+i);
-            // CS534: update scalar processed flag
+            // TEMPNO CS534: update scalar processed flag
             scalar_access_processed = true;
         }
         for( a=accesses.begin(); a != accesses.end(); ++a ) 
             m_accessq.push_back( mem_access_t(access_type,a->first,cache_block_size,is_write,a->second,byte_mask) );
-    }
+    }*/
 
     if ( space.get_type() == global_space ) {
         ptx_file_line_stats_add_uncoalesced_gmem( pc, m_accessq.size() - starting_queue_size );
@@ -858,6 +858,7 @@ void core_t::scalar_detector(warp_inst_t &inst, unsigned warpId)
       if (!inst.active(t)) continue;
       // only get the first active thread
       unsigned tid = m_warp_size * warpId + t;
+      //printf("m_warp_size = %d, warpId = %d, tid = %d\n", m_warp_size, warpId, tid);
       addr_t pc = m_thread[tid]->get_pc();
       pI = m_thread[tid]->get_inst(pc);
       assert(pc == inst.pc);
@@ -897,7 +898,7 @@ void core_t::execute_warp_inst_t(warp_inst_t &inst, unsigned warpId)
 {
     // CS534: actual scalar detector need to be add here
     // value of operands will be collected inside the execute_warp_inst_t function
-    scalar_detector(inst, warpId);
+    scalar_detector(inst, inst.warp_id());
     // CS534: this is just for functional simulation? scalar unit is added in pipeline?
     // no need to modify here?
     // only updaete 1 thread of results (maybe will affect power simulation)
