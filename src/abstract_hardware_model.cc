@@ -906,23 +906,18 @@ void core_t::execute_warp_inst_t(warp_inst_t &inst, unsigned warpId)
       inst.scalar_checked = true;
       scalar_detector(inst, inst.warp_id());
     }
-    if (inst.scalar_flag && inst.scalar_executed) {
-      return;
-    }
     for ( unsigned t=0; t < m_warp_size; t++ ) {
-        if( inst.active(t) ) {
+        if( inst.active(t)) {
             if(warpId==(unsigned (-1)))
                 warpId = inst.warp_id();
             unsigned tid=m_warp_size*warpId+t;
             m_thread[tid]->ptx_exec_inst(inst,t);
-            
             //virtual function
             checkExecutionStatusAndUpdate(inst,t,tid);
-            if (inst.scalar_flag) {
+            if (inst.scalar_flag && !inst.scalar_executed) {
                 inst.scalar_executed = true;
                 printf("[SCALAR EXEC] PC = %u, warp = %u, only execute lane %d\n",
                     inst.pc, warpId, t);
-                break; // CS534: scalar inst only execute the first active thread
             }
         }
     } 
