@@ -740,6 +740,10 @@ public:
             arch_reg.dst[i] = -1;
         }
         isize=0;
+        // CS534: scalar flag
+        scalar_flag = false;
+        scalar_checked = false;
+        scalar_executed = false;
     }
     bool valid() const { return m_decoded; }
     virtual void print_insn( FILE *fp ) const 
@@ -782,6 +786,8 @@ public:
     unsigned char is_vectorout;
     int pred; // predicate register number
     bool scalar_flag; // CS534: scalar flag added
+    bool scalar_checked; // CS534: scalar check flag added
+    bool scalar_executed; // CS534: scalar executed flag added
     int ar1, ar2;
     // register number for bank conflict evaluation
     struct {

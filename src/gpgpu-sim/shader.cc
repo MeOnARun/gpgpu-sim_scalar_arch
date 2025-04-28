@@ -888,7 +888,8 @@ void scheduler_unit::cycle()
                             bool sfu_pipe_avail = m_sfu_out->has_free();
                             // CS534: scalar pipeline
                             bool scalsp_pipe_avail = m_scalsp_out->has_free();
-                            // CS 534: prefer scalar pipeline
+                            // CS 534: prefer scalar pipeline (currently can not have SCAL_ALU_OP)
+                            // because scalar detector is added after issue
                             if (scalsp_pipe_avail && (pI->op == SCAL_ALU_OP)) {
                               m_shader->issue_warp(*m_scalsp_out,pI,active_mask,warp_id);
                               issued++;
