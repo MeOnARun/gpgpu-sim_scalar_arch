@@ -1045,7 +1045,7 @@ class core_t {
             		reduction_storage[i][j]=0;
             	}
             }
-
+            
         }
         virtual ~core_t() { free(m_thread); }
         virtual void warp_exit( unsigned warp_id ) = 0;
@@ -1054,6 +1054,28 @@ class core_t {
         class gpgpu_sim * get_gpu() {return m_gpu;}
         // CS534: scalar detector
         void scalar_detector(warp_inst_t &inst, unsigned warpId=(unsigned)-1);
+        // CS534: scalar register file update
+        void set_reg( const symbol *reg, const ptx_reg_t &value ) {
+          assert( reg != NULL );
+          if( reg->name() == "_" ) return;
+          assert( reg->uid() > 0 );
+          m_scalar_regs[reg] = value;
+          printf("[SCALAR RF UPDATE] set scalar reg %s = %f\n", reg->name().c_str(), m_scalar_regs[reg].get_double() );
+        }
+        ptx_reg_t get_reg( const symbol *reg ) {
+          static bool unfound_register_warned = false;
+          assert( reg != NULL );
+          assert( !m_scalar_regs.empty() );
+          if(!m_scalar_regs.exists(reg)) {
+            ptx_reg_t uninit_reg;
+            uninit_reg.u32 = 0x0;
+            set_reg(reg, uninit_reg); // give it a value since we are going to warn the user anyway
+            printf("GPGPU-Sim PTX: WARNING ** reading undefined register \'%s\'. Setting to 0X00000000. This is okay if you are simulating the native ISA.\n"
+              , reg->name().c_str());
+          }
+          printf("[SCALAR RF READ] scalar reg %s = %f\n", reg->name().c_str(), m_scalar_regs[reg].get_double());
+          return m_scalar_regs[reg];
+        }
         void execute_warp_inst_t(warp_inst_t &inst, unsigned warpId =(unsigned)-1);
         bool  ptx_thread_done( unsigned hw_thread_id ) const ;
         void updateSIMTStack(unsigned warpId, warp_inst_t * inst);
@@ -1075,6 +1097,10 @@ class core_t {
         unsigned m_warp_size;
         unsigned m_warp_count;
         unsigned reduction_storage[MAX_CTA_PER_SHADER][MAX_BARRIERS_PER_CTA];
+        
+        // CS534: add scalar register file
+        typedef tr1_hash_map<const symbol*,ptx_reg_t> reg_map_t;
+        reg_map_t m_scalar_regs;
 };
 
 

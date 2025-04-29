@@ -310,8 +310,12 @@ public:
    void ptx_exec_inst( warp_inst_t &inst, unsigned lane_id );
 
    const ptx_version &get_ptx_version() const;
+   // CS534: set/get reg helper added to distinguish scalar ones
+   void set_reg_helper( const symbol *reg, const ptx_reg_t &value );
+   ptx_reg_t get_reg_helper( const symbol *reg );
    void set_reg( const symbol *reg, const ptx_reg_t &value );
    ptx_reg_t get_reg( const symbol *reg );
+   // CS534: add scalar flag
    ptx_reg_t get_operand_value( const operand_info &op, operand_info dstInfo, unsigned opType, ptx_thread_info *thread, int derefFlag );
    void set_operand_value( const operand_info &dst, const ptx_reg_t &data, unsigned type, ptx_thread_info *thread, const ptx_instruction *pI );
    void set_operand_value( const operand_info &dst, const ptx_reg_t &data, unsigned type, ptx_thread_info *thread, const ptx_instruction *pI, int overflow, int carry );
@@ -320,7 +324,7 @@ public:
                                    const ptx_reg_t &data1, 
                                    const ptx_reg_t &data2, 
                                    const ptx_reg_t &data3, 
-                                   const ptx_reg_t &data4 );
+                                   const ptx_reg_t &data4, bool is_scalar = false );
 
    function_info *func_info()
    {
@@ -504,6 +508,9 @@ private:
    bool m_enable_debug_trace;
 
    std::stack<class operand_info, std::vector<operand_info> > m_breakaddrs;
+
+   // CS534: add scalar flag for operand read/write
+   bool scalar_flag;
 };
 
 addr_t generic_to_local( unsigned smid, unsigned hwtid, addr_t addr );

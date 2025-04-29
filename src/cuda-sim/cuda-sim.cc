@@ -1194,7 +1194,10 @@ void ptx_thread_info::ptx_exec_inst( warp_inst_t &inst, unsigned lane_id)
    int op_classification = 0;
    addr_t pc = next_instr();
    assert( pc == inst.pc ); // make sure timing model and functional model are in sync
-   const ptx_instruction *pI = m_func_info->get_instruction(pc);
+   ptx_instruction *pI = m_func_info->get_instruction(pc);
+   // CS534: pass scalar flag to ptx_instruction
+   pI->scalar_flag = inst.scalar_flag;
+   scalar_flag = inst.scalar_flag;
    set_npc( pc + pI->inst_size() );
    if (inst.scalar_flag && inst.scalar_executed) {
      update_pc();
