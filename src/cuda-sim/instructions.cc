@@ -63,6 +63,14 @@ void ptx_thread_info::set_reg_helper( const symbol *reg, const ptx_reg_t &value 
    else return m_core->set_reg(reg, value);
 }
 
+void core_t::set_reg( const symbol *reg, const ptx_reg_t &value ) {
+  assert( reg != NULL );
+  if( reg->name() == "_" ) return;
+  assert( reg->uid() > 0 );
+  m_scalar_regs[reg] = value;
+  printf("[SCALAR RF UPDATE] set scalar reg %s = %d\n", reg->name().c_str(), m_scalar_regs[reg].s32 );
+}
+
 void ptx_thread_info::set_reg( const symbol *reg, const ptx_reg_t &value ) 
 {
    assert( reg != NULL );
@@ -80,6 +88,19 @@ ptx_reg_t ptx_thread_info::get_reg_helper( const symbol *reg )
 {
    if (!scalar_flag) return get_reg(reg);
    else return m_core->get_reg(reg);
+}
+
+ptx_reg_t core_t::get_reg( const symbol *reg ) {
+  assert( reg != NULL );
+  if(m_scalar_regs.find(reg) == m_scalar_regs.end()) {
+    ptx_reg_t uninit_reg;
+    uninit_reg.u32 = 0x0;
+    set_reg(reg, uninit_reg); // give it a value since we are going to warn the user anyway
+    printf("GPGPU-Sim PTX: WARNING ** reading undefined register \'%s\'. Setting to 0X00000000. This is okay if you are simulating the native ISA.\n"
+      , reg->name().c_str());
+  }
+  printf("[SCALAR RF READ] scalar reg %s = %f\n", reg->name().c_str(), m_scalar_regs[reg].f32);
+  return m_scalar_regs[reg];
 }
 
 ptx_reg_t ptx_thread_info::get_reg( const symbol *reg )

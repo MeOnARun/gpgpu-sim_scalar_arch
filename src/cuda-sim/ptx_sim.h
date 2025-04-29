@@ -53,7 +53,7 @@ struct param_t {
 
 #include "memory.h"
 
-union ptx_reg_t {
+/*union ptx_reg_t {
    ptx_reg_t() {
       bits.ms = 0;
       bits.ls = 0;
@@ -102,30 +102,30 @@ union ptx_reg_t {
    // CS534: added for scalar detector
    bool ptx_reg_eq(ptx_reg_t b, unsigned type)
    {
-      switch(type) {
-         case 298 /*S8_TYPE*/:
-         case 302 /*U8_TYPE*/:
-         case 310 /*B8_TYPE*/:
-            return this->s8 == b.s8;
-         case 299 /*S16_TYPE*/:
-         case 303 /*U16_TYPE*/:
-         case 311 /*B16_TYPE*/:
-            return this->s16 == b.s16;
-         case 300 /*S32_TYPE*/:
-         case 304 /*U32_TYPE*/:
-         case 312 /*B32_TYPE*/:
-            return this->s32 == b.s32;
-         case 301 /*S64_TYPE*/:
-         case 305 /*U64_TYPE*/:
-         case 313 /*B64_TYPE*/:
-            return this->s64 == b.s64;
-         case 306 /*F16_TYPE*/:
-            return this->f16 == b.f16;
-         case 307 /*F32_TYPE*/:
-            return this->f32 == b.f32;
-         case 308 /*F64_TYPE*/:
-         case 309 /*FF64_TYPE*/:
-            return this->f64 == b.f64;
+      switch(type) {*/
+        //case 298 /*S8_TYPE*/:
+        //case 302 /*U8_TYPE*/:
+        //case 310 /*B8_TYPE*/:
+        //   return this->s8 == b.s8;
+        //case 299 /*S16_TYPE*/:
+        //case 303 /*U16_TYPE*/:
+        //case 311 /*B16_TYPE*/:
+        //   return this->s16 == b.s16;
+        //case 300 /*S32_TYPE*/:
+        //case 304 /*U32_TYPE*/:
+        //case 312 /*B32_TYPE*/:
+        //   return this->s32 == b.s32;
+        //case 301 /*S64_TYPE*/:
+        //case 305 /*U64_TYPE*/:
+        //case 313 /*B64_TYPE*/:
+        //   return this->s64 == b.s64;
+        //case 306 /*F16_TYPE*/:
+        //   return this->f16 == b.f16;
+        //case 307 /*F32_TYPE*/:
+        //   return this->f32 == b.f32;
+        //case 308 /*F64_TYPE*/:
+        //case 309 /*FF64_TYPE*/:
+           /* return this->f64 == b.f64;
          default:
             assert(0);
             return false;
@@ -174,7 +174,7 @@ union ptx_reg_t {
    } u128;
    unsigned       pred : 4;
 
-};
+};*/
 
 class ptx_instruction;
 class operand_info;
@@ -324,7 +324,7 @@ public:
                                    const ptx_reg_t &data1, 
                                    const ptx_reg_t &data2, 
                                    const ptx_reg_t &data3, 
-                                   const ptx_reg_t &data4, bool is_scalar = false );
+                                   const ptx_reg_t &data4 );
 
    function_info *func_info()
    {
