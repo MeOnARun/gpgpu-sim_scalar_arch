@@ -32,7 +32,6 @@
 class gpgpu_sim;
 class kernel_info_t;
 class symbol;
-//union ptx_reg_t;
 union ptx_reg_t {
    ptx_reg_t() {
       bits.ms = 0;
@@ -1169,9 +1168,18 @@ class core_t {
             		reduction_storage[i][j]=0;
             	}
             }
+            // CS534: init scalar register file
+            m_scalar_regs = new reg_map_t[m_warp_count];
             
         }
-        virtual ~core_t() { free(m_thread); }
+        virtual ~core_t() 
+        { 
+            free(m_thread); 
+            if (m_scalar_regs) {
+                delete [] m_scalar_regs;
+                m_scalar_regs = NULL;
+            }
+        }
         virtual void warp_exit( unsigned warp_id ) = 0;
         virtual bool warp_waiting_at_barrier( unsigned warp_id ) const = 0;
         virtual void checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned t, unsigned tid)=0;
@@ -1179,8 +1187,8 @@ class core_t {
         // CS534: scalar detector
         void scalar_detector(warp_inst_t &inst, unsigned warpId=(unsigned)-1);
         // CS534: scalar register file update
-        void set_reg( const symbol *reg, const ptx_reg_t &value );
-        ptx_reg_t get_reg( const symbol *reg );
+        void set_reg( const symbol *reg, const ptx_reg_t &value, unsigned warpId );
+        ptx_reg_t get_reg( const symbol *reg, unsigned warpId );
         void execute_warp_inst_t(warp_inst_t &inst, unsigned warpId =(unsigned)-1);
         bool  ptx_thread_done( unsigned hw_thread_id ) const ;
         void updateSIMTStack(unsigned warpId, warp_inst_t * inst);
@@ -1204,8 +1212,8 @@ class core_t {
         unsigned reduction_storage[MAX_CTA_PER_SHADER][MAX_BARRIERS_PER_CTA];
         
         // CS534: add scalar register file
-        typedef std::map<const symbol*,ptx_reg_t> reg_map_t;
-        reg_map_t m_scalar_regs;
+        //typedef std::map<const symbol*,ptx_reg_t> scalar_reg_map_t;
+        reg_map_t *m_scalar_regs;
 };
 
 

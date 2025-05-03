@@ -53,129 +53,6 @@ struct param_t {
 
 #include "memory.h"
 
-/*union ptx_reg_t {
-   ptx_reg_t() {
-      bits.ms = 0;
-      bits.ls = 0;
-      u128.low=0;
-      u128.lowest=0;
-      u128.highest=0;
-      u128.high=0;
-      s8=0;
-      s16=0;
-      s32=0;
-      s64=0;
-      u8=0;
-      u16=0;
-      u64=0;
-      f16=0;
-      f32=0;
-      f64=0;
-      pred=0;
-   }
-   ptx_reg_t(unsigned x) 
-   {
-      bits.ms = 0;
-      bits.ls = 0;
-      u128.low=0;
-      u128.lowest=0;
-      u128.highest=0;
-      u128.high=0;
-      s8=0;
-      s16=0;
-      s32=0;
-      s64=0;
-      u8=0;
-      u16=0;
-      u64=0;
-      f16=0;
-      f32=0;
-      f64=0;
-      pred=0;
-      u32 = x;
-   }
-   operator unsigned int() { return u32;}
-   operator unsigned short() { return u16;}
-   operator unsigned char() { return u8;}
-   operator unsigned long long() { return u64;}
-   
-   // CS534: added for scalar detector
-   bool ptx_reg_eq(ptx_reg_t b, unsigned type)
-   {
-      switch(type) {*/
-        //case 298 /*S8_TYPE*/:
-        //case 302 /*U8_TYPE*/:
-        //case 310 /*B8_TYPE*/:
-        //   return this->s8 == b.s8;
-        //case 299 /*S16_TYPE*/:
-        //case 303 /*U16_TYPE*/:
-        //case 311 /*B16_TYPE*/:
-        //   return this->s16 == b.s16;
-        //case 300 /*S32_TYPE*/:
-        //case 304 /*U32_TYPE*/:
-        //case 312 /*B32_TYPE*/:
-        //   return this->s32 == b.s32;
-        //case 301 /*S64_TYPE*/:
-        //case 305 /*U64_TYPE*/:
-        //case 313 /*B64_TYPE*/:
-        //   return this->s64 == b.s64;
-        //case 306 /*F16_TYPE*/:
-        //   return this->f16 == b.f16;
-        //case 307 /*F32_TYPE*/:
-        //   return this->f32 == b.f32;
-        //case 308 /*F64_TYPE*/:
-        //case 309 /*FF64_TYPE*/:
-           /* return this->f64 == b.f64;
-         default:
-            assert(0);
-            return false;
-      }
-   }
-
-   void mask_and( unsigned ms, unsigned ls )
-   {
-      bits.ms &= ms;
-      bits.ls &= ls;
-   }
-
-   void mask_or( unsigned ms, unsigned ls )
-   {
-      bits.ms |= ms;
-      bits.ls |= ls;
-   }
-   int get_bit( unsigned bit )
-   {
-      if ( bit < 32 )
-         return(bits.ls >> bit) & 1;
-      else
-         return(bits.ms >> (bit-32)) & 1;
-   }
-
-   signed char       s8;
-   signed short      s16;
-   signed int        s32;
-   signed long long  s64;
-   unsigned char     u8;
-   unsigned short    u16;
-   unsigned int      u32;
-   unsigned long long   u64;
-   float             f16; 
-   float          f32;
-   double            f64;
-   struct {
-      unsigned ls;
-      unsigned ms;
-   } bits;
-   struct {
-       unsigned int lowest;
-       unsigned int low;
-       unsigned int high;
-       unsigned int highest;
-   } u128;
-   unsigned       pred : 4;
-
-};*/
-
 class ptx_instruction;
 class operand_info;
 class symbol_table;
@@ -290,6 +167,7 @@ private:
       unsigned m_ptx_extensions;
 };
 
+typedef tr1_hash_map<const symbol*,ptx_reg_t> reg_map_t;
 class ptx_thread_info {
 public:
    ~ptx_thread_info();
@@ -501,7 +379,7 @@ private:
    std::list<stack_entry> m_callstack;
    unsigned m_local_mem_stack_pointer;
 
-   typedef tr1_hash_map<const symbol*,ptx_reg_t> reg_map_t;
+   //typedef tr1_hash_map<const symbol*,ptx_reg_t> reg_map_t;
    std::list<reg_map_t> m_regs;
    std::list<reg_map_t> m_debug_trace_regs_modified;
    std::list<reg_map_t> m_debug_trace_regs_read;
@@ -511,6 +389,7 @@ private:
 
    // CS534: add scalar flag for operand read/write
    bool scalar_flag;
+   unsigned warpid;
 };
 
 addr_t generic_to_local( unsigned smid, unsigned hwtid, addr_t addr );

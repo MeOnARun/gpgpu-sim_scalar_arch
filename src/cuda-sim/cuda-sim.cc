@@ -1198,6 +1198,7 @@ void ptx_thread_info::ptx_exec_inst( warp_inst_t &inst, unsigned lane_id)
    // CS534: pass scalar flag to ptx_instruction
    pI->scalar_flag = inst.scalar_flag;
    scalar_flag = inst.scalar_flag;
+   warpid = inst.warp_id;
    set_npc( pc + pI->inst_size() );
    if (inst.scalar_flag && inst.scalar_executed) {
      update_pc();
