@@ -69,16 +69,19 @@ void core_t::set_reg( const symbol *reg, const ptx_reg_t &value, unsigned warpId
   assert( reg->uid() > 0 );
   //m_scalar_regs[warpId].emplace(reg, value);
   m_scalar_regs[warpId][reg] = value;
+  m_reloc_tbl[warpId][reg] = true;
   printf("[SCALAR RF UPDATE] warpid = %d, set scalar reg %s = %d\n", warpId, reg->name().c_str(), m_scalar_regs[warpId][reg].s32 );
 }
 
-void ptx_thread_info::set_reg( const symbol *reg, const ptx_reg_t &value ) 
+void ptx_thread_info::set_reg( const symbol *reg, const ptx_reg_t &value, unsigned int warpId) 
 {
    assert( reg != NULL );
    if( reg->name() == "_" ) return;
    assert( !m_regs.empty() );
    assert( reg->uid() > 0 );
    m_regs.back()[ reg ] = value;
+   // update in reloc table
+   m_core->m_reloc_tbl[warpId][reg] = false;
    if (m_enable_debug_trace ) 
       m_debug_trace_regs_modified.back()[ reg ] = value;
    m_last_set_operand_value = value;
@@ -87,8 +90,8 @@ void ptx_thread_info::set_reg( const symbol *reg, const ptx_reg_t &value )
 // CS534: get reg helper for scalar rf get
 ptx_reg_t ptx_thread_info::get_reg_helper( const symbol *reg ) 
 {
-   if (!scalar_flag) return set_reg(reg);
-   else return m_core->set_reg(reg, warpid);
+   if (m_core->m_reloc_tbl[warpid][reg]) return m_core->get_reg(reg, warpid);
+   else return get_reg(reg);
 }
 
 ptx_reg_t core_t::get_reg( const symbol *reg, unsigned warpId ) {

@@ -1170,6 +1170,7 @@ class core_t {
             }
             // CS534: init scalar register file
             m_scalar_regs = new reg_map_t[m_warp_count];
+            m_reloc_tbl = new std::map<const symbol*, bool>[m_warp_count];
             
         }
         virtual ~core_t() 
@@ -1178,6 +1179,10 @@ class core_t {
             if (m_scalar_regs) {
                 delete [] m_scalar_regs;
                 m_scalar_regs = NULL;
+            }
+            if (m_reloc_tbl) {
+                delete [] m_reloc_tbl;
+                m_reloc_tbl = NULL;
             }
         }
         virtual void warp_exit( unsigned warp_id ) = 0;
@@ -1206,6 +1211,7 @@ class core_t {
         // CS534: add scalar register file
         typedef std::map<const symbol*,ptx_reg_t> reg_map_t;
         reg_map_t *m_scalar_regs;
+        std::map<const symbol*, bool> *m_reloc_tbl;
     protected:
         class gpgpu_sim *m_gpu;
         kernel_info_t *m_kernel;

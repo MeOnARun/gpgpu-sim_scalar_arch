@@ -190,7 +190,7 @@ public:
    // CS534: set/get reg helper added to distinguish scalar ones
    void set_reg_helper( const symbol *reg, const ptx_reg_t &value );
    ptx_reg_t get_reg_helper( const symbol *reg );
-   void set_reg( const symbol *reg, const ptx_reg_t &value );
+   void set_reg( const symbol *reg, const ptx_reg_t &value, unsigned int warpId );
    ptx_reg_t get_reg( const symbol *reg );
    // CS534: add scalar flag
    ptx_reg_t get_operand_value( const operand_info &op, operand_info dstInfo, unsigned opType, ptx_thread_info *thread, int derefFlag );
