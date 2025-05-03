@@ -59,29 +59,31 @@ void sign_extend( ptx_reg_t &data, unsigned src_size, const operand_info &dst );
 // CS534: set reg helper for scalar rf set
 void ptx_thread_info::set_reg_helper( const symbol *reg, const ptx_reg_t &value ) 
 {
-   if (!scalar_flag) return set_reg(reg, value);
-   else return m_core->set_reg(reg, value, warpid);
+   if (!scalar_flag) {
+     m_core->m_reloc_tbl[warpid][reg] = false;
+     return set_reg(reg, value);
+   }
+   else {
+     m_core->m_reloc_tbl[warpid][reg] = true;
+     return m_core->set_reg(reg, value, warpid);
+   }
 }
 
 void core_t::set_reg( const symbol *reg, const ptx_reg_t &value, unsigned warpId ) {
   assert( reg != NULL );
   if( reg->name() == "_" ) return;
   assert( reg->uid() > 0 );
-  //m_scalar_regs[warpId].emplace(reg, value);
   m_scalar_regs[warpId][reg] = value;
-  m_reloc_tbl[warpId][reg] = true;
-  printf("[SCALAR RF UPDATE] warpid = %d, set scalar reg %s = %d\n", warpId, reg->name().c_str(), m_scalar_regs[warpId][reg].s32 );
+  //printf("[SCALAR RF UPDATE] warpid = %d, set scalar reg %s = %d\n", warpId, reg->name().c_str(), m_scalar_regs[warpId][reg].s32 );
 }
 
-void ptx_thread_info::set_reg( const symbol *reg, const ptx_reg_t &value, unsigned int warpId) 
+void ptx_thread_info::set_reg( const symbol *reg, const ptx_reg_t &value) 
 {
    assert( reg != NULL );
    if( reg->name() == "_" ) return;
    assert( !m_regs.empty() );
    assert( reg->uid() > 0 );
    m_regs.back()[ reg ] = value;
-   // update in reloc table
-   m_core->m_reloc_tbl[warpId][reg] = false;
    if (m_enable_debug_trace ) 
       m_debug_trace_regs_modified.back()[ reg ] = value;
    m_last_set_operand_value = value;
@@ -97,7 +99,7 @@ ptx_reg_t ptx_thread_info::get_reg_helper( const symbol *reg )
 ptx_reg_t core_t::get_reg( const symbol *reg, unsigned warpId ) {
   assert( reg != NULL );
   assert( m_scalar_regs[warpId].find(reg) != m_scalar_regs[warpId].end() );
-  printf("[SCALAR RF READ] warp_id = %d, scalar reg %s = %f\n", warpId, reg->name().c_str(), m_scalar_regs[warpId][reg].f32);
+  //printf("[SCALAR RF READ] warp_id = %d, scalar reg %s = %d\n", warpId, reg->name().c_str(), m_scalar_regs[warpId][reg].s32);
   return m_scalar_regs[warpId][reg];
 }
 
