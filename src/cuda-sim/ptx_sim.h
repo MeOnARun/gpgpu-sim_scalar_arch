@@ -167,7 +167,6 @@ private:
       unsigned m_ptx_extensions;
 };
 
-typedef tr1_hash_map<const symbol*,ptx_reg_t> reg_map_t;
 class ptx_thread_info {
 public:
    ~ptx_thread_info();
@@ -379,7 +378,7 @@ private:
    std::list<stack_entry> m_callstack;
    unsigned m_local_mem_stack_pointer;
 
-   //typedef tr1_hash_map<const symbol*,ptx_reg_t> reg_map_t;
+   typedef tr1_hash_map<const symbol*,ptx_reg_t> reg_map_t;
    std::list<reg_map_t> m_regs;
    std::list<reg_map_t> m_debug_trace_regs_modified;
    std::list<reg_map_t> m_debug_trace_regs_read;

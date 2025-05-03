@@ -67,8 +67,9 @@ void core_t::set_reg( const symbol *reg, const ptx_reg_t &value, unsigned warpId
   assert( reg != NULL );
   if( reg->name() == "_" ) return;
   assert( reg->uid() > 0 );
-  m_scalar_regs[warpId].emplace(reg, value);
-  printf("[SCALAR RF UPDATE] set scalar reg %s = %d\n", reg->name().c_str(), m_scalar_regs[warpId][reg].s32 );
+  //m_scalar_regs[warpId].emplace(reg, value);
+  m_scalar_regs[warpId][reg] = value;
+  printf("[SCALAR RF UPDATE] warpid = %d, set scalar reg %s = %d\n", warpId, reg->name().c_str(), m_scalar_regs[warpId][reg].s32 );
 }
 
 void ptx_thread_info::set_reg( const symbol *reg, const ptx_reg_t &value ) 
@@ -86,20 +87,14 @@ void ptx_thread_info::set_reg( const symbol *reg, const ptx_reg_t &value )
 // CS534: get reg helper for scalar rf get
 ptx_reg_t ptx_thread_info::get_reg_helper( const symbol *reg ) 
 {
-   if (!scalar_flag) return get_reg(reg);
-   else return m_core->get_reg(reg, warpid);
+   if (!scalar_flag) return set_reg(reg);
+   else return m_core->set_reg(reg, warpid);
 }
 
 ptx_reg_t core_t::get_reg( const symbol *reg, unsigned warpId ) {
   assert( reg != NULL );
-  if(m_scalar_regs.find(reg) == m_scalar_regs.end()) {
-    ptx_reg_t uninit_reg;
-    uninit_reg.u32 = 0x0;
-    set_reg(reg, uninit_reg, warpId); // give it a value since we are going to warn the user anyway
-    printf("GPGPU-Sim PTX: WARNING ** reading undefined register \'%s\'. Setting to 0X00000000. This is okay if you are simulating the native ISA.\n"
-      , reg->name().c_str());
-  }
-  printf("[SCALAR RF READ] scalar reg %s = %f\n", reg->name().c_str(), m_scalar_regs[reg].f32);
+  assert( m_scalar_regs[warpId].find(reg) != m_scalar_regs[warpId].end() );
+  printf("[SCALAR RF READ] warp_id = %d, scalar reg %s = %f\n", warpId, reg->name().c_str(), m_scalar_regs[warpId][reg].f32);
   return m_scalar_regs[warpId][reg];
 }
 

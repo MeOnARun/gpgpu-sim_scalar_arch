@@ -1202,6 +1202,10 @@ class core_t {
         void or_reduction(unsigned ctaid, unsigned barid, bool value) { reduction_storage[ctaid][barid] |= value; }
         void popc_reduction(unsigned ctaid, unsigned barid, bool value) { reduction_storage[ctaid][barid] += value;}
         unsigned get_reduction_value(unsigned ctaid, unsigned barid) {return reduction_storage[ctaid][barid];}
+        
+        // CS534: add scalar register file
+        typedef std::map<const symbol*,ptx_reg_t> reg_map_t;
+        reg_map_t *m_scalar_regs;
     protected:
         class gpgpu_sim *m_gpu;
         kernel_info_t *m_kernel;
@@ -1210,10 +1214,6 @@ class core_t {
         unsigned m_warp_size;
         unsigned m_warp_count;
         unsigned reduction_storage[MAX_CTA_PER_SHADER][MAX_BARRIERS_PER_CTA];
-        
-        // CS534: add scalar register file
-        //typedef std::map<const symbol*,ptx_reg_t> scalar_reg_map_t;
-        reg_map_t *m_scalar_regs;
 };
 
 
