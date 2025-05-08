@@ -56,7 +56,28 @@ ptx_reg_t srcOperandModifiers(ptx_reg_t opData, operand_info opInfo, operand_inf
 
 void sign_extend( ptx_reg_t &data, unsigned src_size, const operand_info &dst );
 
-void ptx_thread_info::set_reg( const symbol *reg, const ptx_reg_t &value ) 
+// CS534: set reg helper for scalar rf set
+void ptx_thread_info::set_reg_helper( const symbol *reg, const ptx_reg_t &value ) 
+{
+   if (!scalar_flag) {
+     m_core->m_reloc_tbl[warpid][reg] = false;
+     return set_reg(reg, value);
+   }
+   else {
+     m_core->m_reloc_tbl[warpid][reg] = true;
+     return m_core->set_reg(reg, value, warpid);
+   }
+}
+
+void core_t::set_reg( const symbol *reg, const ptx_reg_t &value, unsigned warpId ) {
+  assert( reg != NULL );
+  if( reg->name() == "_" ) return;
+  assert( reg->uid() > 0 );
+  m_scalar_regs[warpId][reg] = value;
+  //printf("[SCALAR RF UPDATE] warpid = %d, set scalar reg %s = %d\n", warpId, reg->name().c_str(), m_scalar_regs[warpId][reg].s32 );
+}
+
+void ptx_thread_info::set_reg( const symbol *reg, const ptx_reg_t &value) 
 {
    assert( reg != NULL );
    if( reg->name() == "_" ) return;
@@ -66,6 +87,20 @@ void ptx_thread_info::set_reg( const symbol *reg, const ptx_reg_t &value )
    if (m_enable_debug_trace ) 
       m_debug_trace_regs_modified.back()[ reg ] = value;
    m_last_set_operand_value = value;
+}
+
+// CS534: get reg helper for scalar rf get
+ptx_reg_t ptx_thread_info::get_reg_helper( const symbol *reg ) 
+{
+   if (m_core->m_reloc_tbl[warpid][reg]) return m_core->get_reg(reg, warpid);
+   else return get_reg(reg);
+}
+
+ptx_reg_t core_t::get_reg( const symbol *reg, unsigned warpId ) {
+  assert( reg != NULL );
+  assert( m_scalar_regs[warpId].find(reg) != m_scalar_regs[warpId].end() );
+  //printf("[SCALAR RF READ] warp_id = %d, scalar reg %s = %d\n", warpId, reg->name().c_str(), m_scalar_regs[warpId][reg].s32);
+  return m_scalar_regs[warpId][reg];
 }
 
 ptx_reg_t ptx_thread_info::get_reg( const symbol *reg )
@@ -103,7 +138,7 @@ ptx_reg_t ptx_thread_info::get_operand_value( const operand_info &op, operand_in
    if(op.get_double_operand_type() == 0) {
       if(((opType != BB128_TYPE) && (opType != BB64_TYPE) && (opType != FF64_TYPE)) || (op.get_addr_space() != undefined_space)) {
          if ( op.is_reg() ) {
-            result = get_reg( op.get_symbol() );
+            result = get_reg_helper( op.get_symbol() );
          } else if ( op.is_builtin()) {
             result.u32 = get_builtin( op.get_int(), op.get_addr_offset() );
          } else  if(op.is_immediate_address()){
@@ -116,7 +151,7 @@ ptx_reg_t ptx_thread_info::get_operand_value( const operand_info &op, operand_in
 
             if ( info.is_reg() ) {
                const symbol *name = op.get_symbol();
-               result.u64 = get_reg(name).u64 + op.get_addr_offset(); 
+               result.u64 = get_reg_helper(name).u64 + op.get_addr_offset(); 
             } else if ( info.is_param_kernel() ) {
                result.u64 = sym->get_address() + op.get_addr_offset();
             } else if ( info.is_param_local() ) {
@@ -160,19 +195,19 @@ ptx_reg_t ptx_thread_info::get_operand_value( const operand_info &op, operand_in
               result.u64 = (result.u64>>16) & 0xFFFF;
       } else if (opType == BB128_TYPE) {
           // b128
-          result.u128.lowest = get_reg( op.vec_symbol(0) ).u32;
-          result.u128.low = get_reg( op.vec_symbol(1) ).u32;
-          result.u128.high = get_reg( op.vec_symbol(2) ).u32;
-          result.u128.highest = get_reg( op.vec_symbol(3) ).u32;
+          result.u128.lowest = get_reg_helper( op.vec_symbol(0) ).u32;
+          result.u128.low = get_reg_helper( op.vec_symbol(1) ).u32;
+          result.u128.high = get_reg_helper( op.vec_symbol(2) ).u32;
+          result.u128.highest = get_reg_helper( op.vec_symbol(3) ).u32;
       } else {
           // bb64 or ff64
-          result.bits.ls = get_reg( op.vec_symbol(0) ).u32;
-          result.bits.ms = get_reg( op.vec_symbol(1) ).u32;
+          result.bits.ls = get_reg_helper( op.vec_symbol(0) ).u32;
+          result.bits.ms = get_reg_helper( op.vec_symbol(1) ).u32;
       }
    } else if (op.get_double_operand_type() == 1) {
       ptx_reg_t firstHalf, secondHalf;
-      firstHalf.u64 = get_reg( op.vec_symbol(0) ).u64;
-      secondHalf.u64 = get_reg( op.vec_symbol(1) ).u64;
+      firstHalf.u64 = get_reg_helper( op.vec_symbol(0) ).u64;
+      secondHalf.u64 = get_reg_helper( op.vec_symbol(1) ).u64;
       if(op.get_operand_lohi() == 1)
            secondHalf.u64 = secondHalf.u64 & 0xFFFF;
       else if(op.get_operand_lohi() == 2)
@@ -182,23 +217,23 @@ ptx_reg_t ptx_thread_info::get_operand_value( const operand_info &op, operand_in
       // s[reg1 += reg2]
       // reg1 is incremented after value is returned: the value returned is s[reg1]
       ptx_reg_t firstHalf, secondHalf;
-      firstHalf.u64 = get_reg(op.vec_symbol(0)).u64;
-      secondHalf.u64 = get_reg(op.vec_symbol(1)).u64;
+      firstHalf.u64 = get_reg_helper(op.vec_symbol(0)).u64;
+      secondHalf.u64 = get_reg_helper(op.vec_symbol(1)).u64;
       if(op.get_operand_lohi() == 1)
            secondHalf.u64 = secondHalf.u64 & 0xFFFF;
       else if(op.get_operand_lohi() == 2)
            secondHalf.u64 = (secondHalf.u64>>16) & 0xFFFF;
       result.u64 = firstHalf.u64;
       firstHalf.u64 = firstHalf.u64 + secondHalf.u64;
-      set_reg(op.vec_symbol(0),firstHalf);
+      set_reg_helper(op.vec_symbol(0),firstHalf);
    } else if (op.get_double_operand_type() == 3) {
       // s[reg += immediate]
       // reg is incremented after value is returned: the value returned is s[reg]
       ptx_reg_t firstHalf;
-      firstHalf.u64 = get_reg(op.get_symbol()).u64;
+      firstHalf.u64 = get_reg_helper(op.get_symbol()).u64;
       result.u64 = firstHalf.u64;
       firstHalf.u64 = firstHalf.u64 + op.get_addr_offset();
-      set_reg(op.get_symbol(),firstHalf);
+      set_reg_helper(op.get_symbol(),firstHalf);
    }
 
    ptx_reg_t finalResult;
@@ -375,7 +410,7 @@ void ptx_thread_info::set_operand_value( const operand_info &dst, const ptx_reg_
         predValue.u64 |= ((overflow & 0x01)<<3);
         predValue.u64 |= ((carry & 0x01)<<2);
 
-        set_reg(sym,predValue);
+        set_reg_helper(sym,predValue);
     }
     else if (dst.get_double_operand_type() == 0)
     {
@@ -417,8 +452,8 @@ void ptx_thread_info::set_operand_value( const operand_info &dst, const ptx_reg_
              setValue2.u32 = (setValue.u64==0)?0xFFFFFFFF:0;
           }
 
-          set_reg(name1,setValue);
-          set_reg(name2,setValue2);
+          set_reg_helper(name1,setValue);
+          set_reg_helper(name2,setValue2);
       }
 
       // Double destination in cvt,shr,mul,etc. instruction ($p0|$r4) - second register operand receives data, first predicate operand
@@ -505,8 +540,8 @@ void ptx_thread_info::set_operand_value( const operand_info &dst, const ptx_reg_
               setValue.u64 = ((m_regs.back()[ regName ].u64) & (~(0xFFFF0000))) + ((data.u64<<16) & 0xFFFF0000);
           }
 
-          set_reg(predName,predValue);
-          set_reg(regName,setValue);
+          set_reg_helper(predName,predValue);
+          set_reg_helper(regName,setValue);
       }
       else if (type == BB128_TYPE)
       {
@@ -528,10 +563,10 @@ void ptx_thread_info::set_operand_value( const operand_info &dst, const ptx_reg_
           name3 = dst.vec_symbol(2);
           name4 = dst.vec_symbol(3);
 
-          set_reg(name1,setValue);
-          set_reg(name2,setValue2);
-          set_reg(name3,setValue3);
-          set_reg(name4,setValue4);
+          set_reg_helper(name1,setValue);
+          set_reg_helper(name2,setValue2);
+          set_reg_helper(name3,setValue3);
+          set_reg_helper(name4,setValue4);
       }
       else if (type == BB64_TYPE || type == FF64_TYPE)
       {
@@ -548,8 +583,8 @@ void ptx_thread_info::set_operand_value( const operand_info &dst, const ptx_reg_
           name1 = dst.vec_symbol(0);
           name2 = dst.vec_symbol(1);
 
-          set_reg(name1,setValue);
-          set_reg(name2,setValue2);
+          set_reg_helper(name1,setValue);
+          set_reg_helper(name2,setValue2);
       }
       else
       {
@@ -561,7 +596,7 @@ void ptx_thread_info::set_operand_value( const operand_info &dst, const ptx_reg_
           {
               setValue.u64 = ((m_regs.back()[ dst.get_symbol() ].u64) & (~(0xFFFF0000))) + ((data.u64<<16) & 0xFFFF0000);
           }
-          set_reg(dst.get_symbol(),setValue);
+          set_reg_helper(dst.get_symbol(),setValue);
       }
    }
 
@@ -618,13 +653,13 @@ void ptx_thread_info::set_vector_operand_values( const operand_info &dst,
 {
    unsigned num_elements = dst.get_vect_nelem(); 
    if (num_elements > 0) {
-       set_reg(dst.vec_symbol(0), data1);
+      set_reg_helper(dst.vec_symbol(0), data1);
        if (num_elements > 1) {
-           set_reg(dst.vec_symbol(1), data2);
+         set_reg_helper(dst.vec_symbol(1), data2);
            if (num_elements > 2) {
-              set_reg(dst.vec_symbol(2), data3);
+            set_reg_helper(dst.vec_symbol(2), data3);
               if (num_elements > 3) {
-                 set_reg(dst.vec_symbol(3), data4);
+               set_reg_helper(dst.vec_symbol(3), data4);
               }
            }
        }
@@ -2127,7 +2162,7 @@ void cvta_impl( const ptx_instruction *pI, ptx_thread_info *thread )
    
    ptx_reg_t to_addr;
    to_addr.u64 = to_addr_hw;
-   thread->set_reg(dst.get_symbol(),to_addr);
+   thread->set_reg_helper(dst.get_symbol(),to_addr);
 }
 
 void div_impl( const ptx_instruction *pI, ptx_thread_info *thread ) 
@@ -2224,7 +2259,7 @@ void isspacep_impl( const ptx_instruction *pI, ptx_thread_info *thread )
    const operand_info &src1 = pI->src1();
    memory_space_t space = pI->get_space();
 
-   a = thread->get_reg(src1.get_symbol());
+   a = thread->get_reg_helper(src1.get_symbol());
    addr_t addr = (addr_t)a.u64;
    unsigned smid = thread->get_hw_sid();
    unsigned hwtid = thread->get_hw_tid();
@@ -2239,7 +2274,7 @@ void isspacep_impl( const ptx_instruction *pI, ptx_thread_info *thread )
    ptx_reg_t p;
    p.pred = t?1:0;
 
-   thread->set_reg(dst.get_symbol(),p);
+   thread->set_reg_helper(dst.get_symbol(),p);
 }
 
 void decode_space( memory_space_t &space, ptx_thread_info *thread, const operand_info &op, memory_space *&mem, addr_t &addr)

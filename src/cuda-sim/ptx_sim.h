@@ -53,96 +53,6 @@ struct param_t {
 
 #include "memory.h"
 
-union ptx_reg_t {
-   ptx_reg_t() {
-      bits.ms = 0;
-      bits.ls = 0;
-      u128.low=0;
-      u128.lowest=0;
-      u128.highest=0;
-      u128.high=0;
-      s8=0;
-      s16=0;
-      s32=0;
-      s64=0;
-      u8=0;
-      u16=0;
-      u64=0;
-      f16=0;
-      f32=0;
-      f64=0;
-      pred=0;
-   }
-   ptx_reg_t(unsigned x) 
-   {
-      bits.ms = 0;
-      bits.ls = 0;
-      u128.low=0;
-      u128.lowest=0;
-      u128.highest=0;
-      u128.high=0;
-      s8=0;
-      s16=0;
-      s32=0;
-      s64=0;
-      u8=0;
-      u16=0;
-      u64=0;
-      f16=0;
-      f32=0;
-      f64=0;
-      pred=0;
-      u32 = x;
-   }
-   operator unsigned int() { return u32;}
-   operator unsigned short() { return u16;}
-   operator unsigned char() { return u8;}
-   operator unsigned long long() { return u64;}
-
-   void mask_and( unsigned ms, unsigned ls )
-   {
-      bits.ms &= ms;
-      bits.ls &= ls;
-   }
-
-   void mask_or( unsigned ms, unsigned ls )
-   {
-      bits.ms |= ms;
-      bits.ls |= ls;
-   }
-   int get_bit( unsigned bit )
-   {
-      if ( bit < 32 )
-         return(bits.ls >> bit) & 1;
-      else
-         return(bits.ms >> (bit-32)) & 1;
-   }
-
-   signed char       s8;
-   signed short      s16;
-   signed int        s32;
-   signed long long  s64;
-   unsigned char     u8;
-   unsigned short    u16;
-   unsigned int      u32;
-   unsigned long long   u64;
-   float             f16; 
-   float          f32;
-   double            f64;
-   struct {
-      unsigned ls;
-      unsigned ms;
-   } bits;
-   struct {
-       unsigned int lowest;
-       unsigned int low;
-       unsigned int high;
-       unsigned int highest;
-   } u128;
-   unsigned       pred : 4;
-
-};
-
 class ptx_instruction;
 class operand_info;
 class symbol_table;
@@ -277,8 +187,12 @@ public:
    void ptx_exec_inst( warp_inst_t &inst, unsigned lane_id );
 
    const ptx_version &get_ptx_version() const;
+   // CS534: set/get reg helper added to distinguish scalar ones
+   void set_reg_helper( const symbol *reg, const ptx_reg_t &value );
+   ptx_reg_t get_reg_helper( const symbol *reg );
    void set_reg( const symbol *reg, const ptx_reg_t &value );
    ptx_reg_t get_reg( const symbol *reg );
+   // CS534: add scalar flag
    ptx_reg_t get_operand_value( const operand_info &op, operand_info dstInfo, unsigned opType, ptx_thread_info *thread, int derefFlag );
    void set_operand_value( const operand_info &dst, const ptx_reg_t &data, unsigned type, ptx_thread_info *thread, const ptx_instruction *pI );
    void set_operand_value( const operand_info &dst, const ptx_reg_t &data, unsigned type, ptx_thread_info *thread, const ptx_instruction *pI, int overflow, int carry );
@@ -471,6 +385,10 @@ private:
    bool m_enable_debug_trace;
 
    std::stack<class operand_info, std::vector<operand_info> > m_breakaddrs;
+
+   // CS534: add scalar flag for operand read/write
+   bool scalar_flag;
+   unsigned warpid;
 };
 
 addr_t generic_to_local( unsigned smid, unsigned hwtid, addr_t addr );

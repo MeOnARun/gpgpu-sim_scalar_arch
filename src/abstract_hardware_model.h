@@ -31,6 +31,129 @@
 // Forward declarations
 class gpgpu_sim;
 class kernel_info_t;
+class symbol;
+union ptx_reg_t {
+   ptx_reg_t() {
+      bits.ms = 0;
+      bits.ls = 0;
+      u128.low=0;
+      u128.lowest=0;
+      u128.highest=0;
+      u128.high=0;
+      s8=0;
+      s16=0;
+      s32=0;
+      s64=0;
+      u8=0;
+      u16=0;
+      u64=0;
+      f16=0;
+      f32=0;
+      f64=0;
+      pred=0;
+   }
+   ptx_reg_t(unsigned x) 
+   {
+      bits.ms = 0;
+      bits.ls = 0;
+      u128.low=0;
+      u128.lowest=0;
+      u128.highest=0;
+      u128.high=0;
+      s8=0;
+      s16=0;
+      s32=0;
+      s64=0;
+      u8=0;
+      u16=0;
+      u64=0;
+      f16=0;
+      f32=0;
+      f64=0;
+      pred=0;
+      u32 = x;
+   }
+   operator unsigned int() { return u32;}
+   operator unsigned short() { return u16;}
+   operator unsigned char() { return u8;}
+   operator unsigned long long() { return u64;}
+   
+   // CS534: added for scalar detector
+   bool ptx_reg_eq(ptx_reg_t b, unsigned type)
+   {
+      switch(type) {
+         case 298 /*S8_TYPE*/:
+         case 302 /*U8_TYPE*/:
+         case 310 /*B8_TYPE*/:
+            return this->s8 == b.s8;
+         case 299 /*S16_TYPE*/:
+         case 303 /*U16_TYPE*/:
+         case 311 /*B16_TYPE*/:
+            return this->s16 == b.s16;
+         case 300 /*S32_TYPE*/:
+         case 304 /*U32_TYPE*/:
+         case 312 /*B32_TYPE*/:
+            return this->s32 == b.s32;
+         case 301 /*S64_TYPE*/:
+         case 305 /*U64_TYPE*/:
+         case 313 /*B64_TYPE*/:
+            return this->s64 == b.s64;
+         case 306 /*F16_TYPE*/:
+            return this->f16 == b.f16;
+         case 307 /*F32_TYPE*/:
+            return this->f32 == b.f32;
+         case 308 /*F64_TYPE*/:
+         case 309 /*FF64_TYPE*/:
+            return this->f64 == b.f64;
+         default:
+            //assert(0);
+            return false;
+      }
+   }
+
+   void mask_and( unsigned ms, unsigned ls )
+   {
+      bits.ms &= ms;
+      bits.ls &= ls;
+   }
+
+   void mask_or( unsigned ms, unsigned ls )
+   {
+      bits.ms |= ms;
+      bits.ls |= ls;
+   }
+   int get_bit( unsigned bit )
+   {
+      if ( bit < 32 )
+         return(bits.ls >> bit) & 1;
+      else
+         return(bits.ms >> (bit-32)) & 1;
+   }
+
+   signed char       s8;
+   signed short      s16;
+   signed int        s32;
+   signed long long  s64;
+   unsigned char     u8;
+   unsigned short    u16;
+   unsigned int      u32;
+   unsigned long long   u64;
+   float             f16; 
+   float          f32;
+   double            f64;
+   struct {
+      unsigned ls;
+      unsigned ms;
+   } bits;
+   struct {
+       unsigned int lowest;
+       unsigned int low;
+       unsigned int high;
+       unsigned int highest;
+   } u128;
+   unsigned       pred : 4;
+
+};
 
 //Set a hard limit of 32 CTAs per shader [cuda only has 8]
 #define MAX_CTA_PER_SHADER 32
@@ -83,7 +206,9 @@ enum uarch_op_t {
    BARRIER_OP,
    MEMORY_BARRIER_OP,
    CALL_OPS,
-   RET_OPS
+   RET_OPS,
+   // CS534: scalar sp type
+   SCAL_ALU_OP
 };
 typedef enum uarch_op_t op_type;
 
@@ -738,6 +863,10 @@ public:
             arch_reg.dst[i] = -1;
         }
         isize=0;
+        // CS534: scalar flag
+        scalar_flag = false;
+        scalar_checked = false;
+        scalar_executed = false;
     }
     bool valid() const { return m_decoded; }
     virtual void print_insn( FILE *fp ) const 
@@ -780,6 +909,8 @@ public:
     unsigned char is_vectorout;
     int pred; // predicate register number
     bool scalar_flag; // CS534: scalar flag added
+    bool scalar_checked; // CS534: scalar check flag added
+    bool scalar_executed; // CS534: scalar executed flag added
     int ar1, ar2;
     // register number for bank conflict evaluation
     struct {
@@ -1037,13 +1168,32 @@ class core_t {
             		reduction_storage[i][j]=0;
             	}
             }
-
+            // CS534: init scalar register file
+            m_scalar_regs = new reg_map_t[m_warp_count];
+            m_reloc_tbl = new std::map<const symbol*, bool>[m_warp_count];
+            
         }
-        virtual ~core_t() { free(m_thread); }
+        virtual ~core_t() 
+        { 
+            free(m_thread); 
+            if (m_scalar_regs) {
+                delete [] m_scalar_regs;
+                m_scalar_regs = NULL;
+            }
+            if (m_reloc_tbl) {
+                delete [] m_reloc_tbl;
+                m_reloc_tbl = NULL;
+            }
+        }
         virtual void warp_exit( unsigned warp_id ) = 0;
         virtual bool warp_waiting_at_barrier( unsigned warp_id ) const = 0;
         virtual void checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned t, unsigned tid)=0;
         class gpgpu_sim * get_gpu() {return m_gpu;}
+        // CS534: scalar detector
+        void scalar_detector(warp_inst_t &inst, unsigned warpId=(unsigned)-1);
+        // CS534: scalar register file update
+        void set_reg( const symbol *reg, const ptx_reg_t &value, unsigned warpId );
+        ptx_reg_t get_reg( const symbol *reg, unsigned warpId );
         void execute_warp_inst_t(warp_inst_t &inst, unsigned warpId =(unsigned)-1);
         bool  ptx_thread_done( unsigned hw_thread_id ) const ;
         void updateSIMTStack(unsigned warpId, warp_inst_t * inst);
@@ -1057,6 +1207,11 @@ class core_t {
         void or_reduction(unsigned ctaid, unsigned barid, bool value) { reduction_storage[ctaid][barid] |= value; }
         void popc_reduction(unsigned ctaid, unsigned barid, bool value) { reduction_storage[ctaid][barid] += value;}
         unsigned get_reduction_value(unsigned ctaid, unsigned barid) {return reduction_storage[ctaid][barid];}
+        
+        // CS534: add scalar register file
+        typedef std::map<const symbol*,ptx_reg_t> reg_map_t;
+        reg_map_t *m_scalar_regs;
+        std::map<const symbol*, bool> *m_reloc_tbl;
     protected:
         class gpgpu_sim *m_gpu;
         kernel_info_t *m_kernel;

@@ -29,12 +29,15 @@
 
 #include "abstract_hardware_model.h"
 #include "cuda-sim/memory.h"
+#include "cuda-sim/opcodes.h"
 #include "cuda-sim/ptx_ir.h"
 #include "cuda-sim/ptx-stats.h"
 #include "cuda-sim/cuda-sim.h"
+#include "cuda-sim/ptx_sim.h"
 #include "gpgpu-sim/gpu-sim.h"
 #include "option_parser.h"
 #include <algorithm>
+#include <vector>
 
 unsigned mem_access_t::sm_next_access_uid = 0;   
 unsigned warp_inst_t::sm_next_uid = 0;
@@ -229,12 +232,12 @@ void warp_inst_t::generate_mem_accesses()
             std::map<unsigned,std::map<new_addr_type,unsigned> > bank_accs; // bank -> word address -> access count
 
             // step 1: compute accesses to words in banks
-            // CS534: for scalar mem inst
-            bool scalar_access_processed = false;
+            // TEMPNO CS534: for scalar mem inst
+            /*bool scalar_access_processed = false;
             for( unsigned thread=subwarp*subwarp_size; thread < (subwarp+1)*subwarp_size; thread++ ) {
                 if( !active(thread) ) 
                     continue;
-                // CS534: scalar mem req, only need to do 1 access for all threads
+                // TEMPNO CS534: scalar mem req, only need to do 1 access for all threads
                 //   this bank_accs is used to simulate the delay in m_pipeline_regs
                 if (scalar_flag & scalar_access_processed)
                     break;
@@ -249,9 +252,9 @@ void warp_inst_t::generate_mem_accesses()
                 // Notes: find out which word it is accessing
                 new_addr_type word = line_size_based_tag_func(addr,m_config->WORD_SIZE);
                 bank_accs[bank][word]++;
-                // CS534: update scalar processed flag
+                // TEMPNO CS534: update scalar processed flag
                 scalar_access_processed = true;
-            }
+            }*/
 
             if (m_config->shmem_limited_broadcast) {
                 // step 2: look for and select a broadcast bank/word if one occurs
@@ -341,8 +344,8 @@ void warp_inst_t::generate_mem_accesses()
     }
 
     // Notes: only tex_space/const_space will execute this part
-    // CS534: scalar processed flag
-    bool scalar_access_processed = false;
+    // TEMPNO CS534: scalar processed flag
+    /*bool scalar_access_processed = false;
     if( cache_block_size ) {
         assert( m_accessq.empty() );
         mem_access_byte_mask_t byte_mask; 
@@ -351,7 +354,7 @@ void warp_inst_t::generate_mem_accesses()
         for( unsigned thread=0; thread < m_config->warp_size; thread++ ) {
             if( !active(thread) ) 
                 continue;
-            // CS534: scalar mem req (const / tex), only need to do 1 access for all threads
+            // TEMPNO CS534: scalar mem req (const / tex), only need to do 1 access for all threads
             //   requests will be put into m_accessq to process mem reqs
             if (scalar_flag & scalar_access_processed)
                 break;
@@ -361,12 +364,12 @@ void warp_inst_t::generate_mem_accesses()
             unsigned idx = addr-block_address; 
             for( unsigned i=0; i < data_size; i++ ) 
                 byte_mask.set(idx+i);
-            // CS534: update scalar processed flag
+            // TEMPNO CS534: update scalar processed flag
             scalar_access_processed = true;
         }
         for( a=accesses.begin(); a != accesses.end(); ++a ) 
             m_accessq.push_back( mem_access_t(access_type,a->first,cache_block_size,is_write,a->second,byte_mask) );
-    }
+    }*/
 
     if ( space.get_type() == global_space ) {
         ptx_file_line_stats_add_uncoalesced_gmem( pc, m_accessq.size() - starting_queue_size );
@@ -806,20 +809,116 @@ void simt_stack::update( simt_mask_t &thread_done, addr_vector_t &next_pc, addre
     }
 }
 
+// CS534: scalar detector
+bool scalar_detector_helper(const ptx_instruction *pI, warp_inst_t& inst, ptx_thread_info **thread,
+  unsigned m_warp_size, unsigned int warpId, unsigned int num_src)
+{
+    // get src
+    assert(num_src >= 1 && num_src <= 3);
+    std::vector<operand_info> srcs;
+    srcs.push_back(pI->src1());
+    if (num_src > 1) {
+      srcs.push_back(pI->src2());
+    }
+    if (num_src > 2) {
+      srcs.push_back(pI->src3());
+    }
+    // check each thread
+    std::vector<ptx_reg_t> ref_vals;
+    std::vector<bool> ref_set;
+    for (unsigned i = 0; i < num_src; i++) {
+      ref_set.push_back(false);
+    }
+    for (unsigned t = 0; t < m_warp_size; t++) {
+      if (!inst.active(t)) continue;
+      unsigned tid = m_warp_size * warpId + t;
+      for (int i = 0; i < num_src; i++) {
+        ptx_reg_t val = thread[tid]->get_operand_value(srcs[i], srcs[i], pI->get_type(), thread[tid], 1);
+        if (!ref_set[i]) {
+          ref_vals.push_back(val);
+          ref_set[i] = true;
+        }
+        else if (!val.ptx_reg_eq(ref_vals[i], pI->get_type())) {
+          // not scalar, directly return false
+          return false;
+        }
+      }
+    }
+    return true;
+}
+void core_t::scalar_detector(warp_inst_t &inst, unsigned warpId)
+{
+    // get each operands value
+    // Note: the src number is not set at the parsing time, so cannot get it here
+    //   in actual functional model, collecting value is also hard coded
+    //   here we set scalar default to false, and hard code src numbers for some insts
+    //   (e.g. add) for 1st test
+    const ptx_instruction *pI = NULL;
+    for (unsigned t = 0; t < m_warp_size; t++) {
+      if (!inst.active(t)) continue;
+      // only get the first active thread
+      unsigned tid = m_warp_size * warpId + t;
+      //printf("m_warp_size = %d, warpId = %d, tid = %d\n", m_warp_size, warpId, tid);
+      addr_t pc = m_thread[tid]->get_pc();
+      pI = m_thread[tid]->get_inst(pc);
+      assert(pc == inst.pc);
+      assert(pI);
+      break;
+    }
+    // empty warp: scalar flag true
+    if (pI == NULL) {
+      inst.scalar_flag = true;
+      return;
+    }
+    // get the opcode
+    int opcode = pI->get_opcode();
+    bool is_scalar = false;
+    switch (opcode) {
+      // 2src insts
+      case ADD_OP:
+        is_scalar = scalar_detector_helper(pI, inst, m_thread, m_warp_size, warpId, 2);
+        break;
+      // exclude from scalar detection
+      default:
+        is_scalar = false;
+        break;
+    }
+
+    if (is_scalar) {
+      printf("[SCALAR DETECTED] opcode = %s, PC = %u, warp = %u\n",
+        pI->get_opcode_cstr(), pI->get_PC(), warpId);
+    }
+
+    // set the scalar flag
+    inst.scalar_flag = is_scalar;
+    // change the op type if scalar
+    if (is_scalar) {
+      inst.op = SCAL_ALU_OP;
+    }
+    return;
+}
+
 void core_t::execute_warp_inst_t(warp_inst_t &inst, unsigned warpId)
 {
-    // CS534: this is just for functional simulation? scalar unit is added in pipeline?
-    // no need to modify here?
-    // only updaete 1 thread of results (maybe will affect power simulation)
+    // CS534: actual scalar detector need to be add here
+    // value of operands will be collected inside the execute_warp_inst_t function
+    if (!inst.scalar_checked) {
+      inst.scalar_checked = true;
+      scalar_detector(inst, inst.warp_id());
+    }
     for ( unsigned t=0; t < m_warp_size; t++ ) {
-        if( inst.active(t) ) {
+        if( inst.active(t)) {
             if(warpId==(unsigned (-1)))
                 warpId = inst.warp_id();
             unsigned tid=m_warp_size*warpId+t;
             m_thread[tid]->ptx_exec_inst(inst,t);
-            
             //virtual function
             checkExecutionStatusAndUpdate(inst,t,tid);
+            if (inst.scalar_flag && !inst.scalar_executed) {
+                inst.scalar_executed = true;
+                printf("[SCALAR EXEC] PC = %u, warp = %u, only execute lane %d\n",
+                    inst.pc, warpId, t);
+            }
         }
     } 
 }

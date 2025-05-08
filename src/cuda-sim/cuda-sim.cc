@@ -1194,8 +1194,16 @@ void ptx_thread_info::ptx_exec_inst( warp_inst_t &inst, unsigned lane_id)
    int op_classification = 0;
    addr_t pc = next_instr();
    assert( pc == inst.pc ); // make sure timing model and functional model are in sync
-   const ptx_instruction *pI = m_func_info->get_instruction(pc);
+   ptx_instruction *pI = const_cast<ptx_instruction*>(m_func_info->get_instruction(pc));
+   // CS534: pass scalar flag to ptx_instruction
+   pI->scalar_flag = inst.scalar_flag;
+   scalar_flag = inst.scalar_flag;
+   warpid = inst.warp_id();
    set_npc( pc + pI->inst_size() );
+   if (inst.scalar_flag && inst.scalar_executed) {
+     update_pc();
+     return;
+   }
    
 
    try {
@@ -1231,7 +1239,7 @@ void ptx_thread_info::ptx_exec_inst( warp_inst_t &inst, unsigned lane_id)
    if( skip ) {
       inst.set_not_active(lane_id);
    } else {
-      const ptx_instruction *pI_saved = pI;
+      ptx_instruction *pI_saved = pI;
       ptx_instruction *pJ = NULL;
       if( pI->get_opcode() == VOTE_OP ) {
          pJ = new ptx_instruction(*pI);
