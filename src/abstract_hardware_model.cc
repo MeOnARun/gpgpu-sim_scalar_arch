@@ -874,15 +874,82 @@ void core_t::scalar_detector(warp_inst_t &inst, unsigned warpId)
     int opcode = pI->get_opcode();
     bool is_scalar = false;
     switch (opcode) {
-      // 2src insts
-      case ADD_OP:
-        is_scalar = scalar_detector_helper(pI, inst, m_thread, m_warp_size, warpId, 2);
-        break;
-      // exclude from scalar detection
-      default:
-        is_scalar = false;
-        break;
-    }
+        //
+        // 1) ALU (Type=1) – two‑src integer/logical/unary ops
+        //
+        case ABS_OP: case ADD_OP: case ADDP_OP: case ADDC_OP:
+        case AND_OP: case ANDN_OP: case BFE_OP: case BFI_OP:
+        case BFIND_OP: case BREV_OP: case CLZ_OP: case CNOT_OP:
+        case MOV_OP: case NOT_OP: case OR_OP: case ORN_OP:
+        case POPC_OP: case PRMT_OP: case REM_OP: case SELP_OP:
+        case SETP_OP: case SET_OP: case SHL_OP: case SHR_OP:
+        case SLCT_OP: case SUB_OP: case SUBC_OP: case XOR_OP:
+            // these have 1 or 2 sources; detect scalar if all lanes agree
+            is_scalar = scalar_detector_helper(pI, inst, m_thread,
+                                                m_warp_size, warpId,
+                                                /*num_src=*/2);
+            break;
+      
+        //
+        // 2) MAD (Type=2) – three‑operand multiply‑accumulate
+        //
+        case FMA_OP: case MAD24_OP: case MAD_OP: case MADP_OP:
+            // 3‑operand, likewise scalarizable if all lanes match
+            is_scalar = scalar_detector_helper(pI, inst, m_thread,
+                                                m_warp_size, warpId,
+                                                /*num_src=*/3);
+            break;
+        
+        //
+        // 3) Control (Type=3) – branches, calls, barriers, etc.
+        //
+        case BRA_OP: case BRX_OP: case CALL_OP: case CALLP_OP:
+        case EXIT_OP: case RET_OP: case RETP_OP: case SSY_OP:
+        case MEMBAR_OP: case BAR_OP: case TRAP_OP: case VOTE_OP:
+            // never scalarize control flow
+            is_scalar = false;
+            break;
+      
+        //
+        // 4) SFU (Type=4) – special functions (transcendentals)
+        //
+        case COS_OP: case EX2_OP: case LG2_OP:
+        case RCP_OP: case RSQRT_OP: case SIN_OP: case SQRT_OP:
+            // keep on vector/SFU units
+            is_scalar = false;
+            break;
+      
+        //
+        // 5) Mem (Type=5) – loads/stores (excluding texture)
+        //
+        case LD_OP: case LDU_OP: case ST_OP:
+        case PREFETCH_OP: case PREFETCHU_OP:
+            // memory ops need full vector behavior
+            is_scalar = false;
+            break;
+      
+        //
+        // 6) Tex (Type=6) – texture instructions
+        //
+        case TEX_OP:
+            is_scalar = false;
+            break;
+        
+        //
+        // 7) NOP (Type=7) or “Other” – do nothing or unclassified
+        //
+        case NOP_OP: case BREAK_OP: case BREAKADDR_OP:
+        case PMEVENT_OP: case RED_OP:
+            is_scalar = false;
+            break;
+      
+        //
+        // default: any future or unknown op → vector
+        //
+        default:
+            is_scalar = false;
+            break;
+      }
 
     if (is_scalar) {
       printf("[SCALAR DETECTED] opcode = %s, PC = %u, warp = %u\n",
