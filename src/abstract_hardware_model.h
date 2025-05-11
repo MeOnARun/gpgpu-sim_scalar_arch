@@ -1191,6 +1191,8 @@ class core_t {
         class gpgpu_sim * get_gpu() {return m_gpu;}
         // CS534: scalar detector
         void scalar_detector(warp_inst_t &inst, unsigned warpId=(unsigned)-1);
+        bool scalar_detector_helper(const ptx_instruction *pI, warp_inst_t& inst, ptx_thread_info **thread,
+            unsigned m_warp_size, unsigned int warpId, unsigned int num_src);
         // CS534: scalar register file update
         void set_reg( const symbol *reg, const ptx_reg_t &value, unsigned warpId );
         ptx_reg_t get_reg( const symbol *reg, unsigned warpId );

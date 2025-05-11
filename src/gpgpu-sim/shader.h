@@ -547,6 +547,8 @@ public:
    {
         dispatch_ready_cu();   
         allocate_reads();
+        // CS534: add for scalar collector
+        allocate_scalar_reads();
         for( unsigned p = 0 ; p < m_in_ports.size(); p++ ) 
             allocate_cu( p );
         process_banks();
@@ -575,6 +577,8 @@ private:
    void dispatch_ready_cu();
    void allocate_cu( unsigned port );
    void allocate_reads();
+   // CS534: add for scalar collector
+   void allocate_scalar_reads();
 
    // types
 
@@ -835,7 +839,7 @@ private:
                 unsigned log2_warp_size,
                 const core_config *config,
                 opndcoll_rfu_t *rfu ); 
-      bool allocate( register_set* pipeline_reg, register_set* output_reg );
+      bool allocate( register_set* pipeline_reg, register_set* output_reg, bool scalar = false );
 
       void collect_operand( unsigned op )
       {
@@ -849,12 +853,16 @@ private:
       }
       void dispatch();
       bool is_free(){return m_free;}
+      // CS534: add scal dispatch
+      void dispatch_scal();
 
    private:
       bool m_free;
       unsigned m_cuid; // collector unit hw id
       unsigned m_warp_id;
       warp_inst_t  *m_warp;
+      // CS534: added members for scalar operand collector
+      std::list<warp_inst_t*> m_scalar_inst_buffer;
       register_set* m_output_register; // pipeline register to issue to when ready
       op_t *m_src_op;
       std::bitset<MAX_REG_OPERANDS*2> m_not_ready;
@@ -919,6 +927,9 @@ private:
    //port_to_du_t                     m_dispatch_units;
    //std::map<warp_inst_t**,std::list<collector_unit_t*> > m_free_cu;
    shader_core_ctx                 *m_shader;
+
+   // CS534: scalar RF read requests
+   std::list<op_t> m_scalar_read_requests;
 };
 
 class barrier_set_t {
@@ -1242,6 +1253,8 @@ enum pipeline_stage_name_t {
     OC_EX_SP,
     OC_EX_SFU,
     OC_EX_MEM,
+    // CS534: add stages for scalar ALU
+    OC_EX_SCALSP,
     EX_WB,
     N_PIPELINE_STAGES 
 };
@@ -1345,16 +1358,20 @@ struct shader_core_config : public core_config
     int gpgpu_operand_collector_num_units_sfu;
     int gpgpu_operand_collector_num_units_mem;
     int gpgpu_operand_collector_num_units_gen;
+    // CS534: add scalar operand collector
+    int gpgpu_operand_collector_num_units_scalsp;
 
     unsigned int gpgpu_operand_collector_num_in_ports_sp;
     unsigned int gpgpu_operand_collector_num_in_ports_sfu;
     unsigned int gpgpu_operand_collector_num_in_ports_mem;
     unsigned int gpgpu_operand_collector_num_in_ports_gen;
+    unsigned int gpgpu_operand_collector_num_in_ports_scalsp;
 
     unsigned int gpgpu_operand_collector_num_out_ports_sp;
     unsigned int gpgpu_operand_collector_num_out_ports_sfu;
     unsigned int gpgpu_operand_collector_num_out_ports_mem;
     unsigned int gpgpu_operand_collector_num_out_ports_gen;
+    unsigned int gpgpu_operand_collector_num_out_ports_scalsp;
 
     int gpgpu_num_sp_units;
     int gpgpu_num_sfu_units;

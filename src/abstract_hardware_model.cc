@@ -810,7 +810,7 @@ void simt_stack::update( simt_mask_t &thread_done, addr_vector_t &next_pc, addre
 }
 
 // CS534: scalar detector
-bool scalar_detector_helper(const ptx_instruction *pI, warp_inst_t& inst, ptx_thread_info **thread,
+bool core_t::scalar_detector_helper(const ptx_instruction *pI, warp_inst_t& inst, ptx_thread_info **thread,
   unsigned m_warp_size, unsigned int warpId, unsigned int num_src)
 {
     // get src
@@ -833,6 +833,8 @@ bool scalar_detector_helper(const ptx_instruction *pI, warp_inst_t& inst, ptx_th
       if (!inst.active(t)) continue;
       unsigned tid = m_warp_size * warpId + t;
       for (int i = 0; i < num_src; i++) {
+        if (srcs[i].is_const()) continue;
+        if (m_reloc_tbl[warpId][srcs[i].get_symbol()]) continue;
         ptx_reg_t val = thread[tid]->get_operand_value(srcs[i], srcs[i], pI->get_type(), thread[tid], 1);
         if (!ref_set[i]) {
           ref_vals.push_back(val);
