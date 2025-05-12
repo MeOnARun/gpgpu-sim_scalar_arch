@@ -810,7 +810,7 @@ void simt_stack::update( simt_mask_t &thread_done, addr_vector_t &next_pc, addre
 }
 
 // CS534: scalar detector
-bool core_t::scalar_detector_helper(const ptx_instruction *pI, warp_inst_t& inst, ptx_thread_info **thread,
+bool scalar_detector_helper(std::map<const symbol*, bool> *m_reloc_tbl, const ptx_instruction *pI, warp_inst_t& inst, ptx_thread_info **thread,
   unsigned m_warp_size, unsigned int warpId, unsigned int num_src)
 {
     // get src
@@ -887,7 +887,7 @@ void core_t::scalar_detector(warp_inst_t &inst, unsigned warpId)
         case SETP_OP: case SET_OP: case SHL_OP: case SHR_OP:
         case SLCT_OP: case SUB_OP: case SUBC_OP: case XOR_OP:
             // these have 1 or 2 sources; detect scalar if all lanes agree
-            is_scalar = scalar_detector_helper(pI, inst, m_thread,
+            is_scalar = scalar_detector_helper(m_reloc_tbl, pI, inst, m_thread,
                                                 m_warp_size, warpId,
                                                 /*num_src=*/2);
             break;
@@ -897,7 +897,7 @@ void core_t::scalar_detector(warp_inst_t &inst, unsigned warpId)
         //
         case FMA_OP: case MAD24_OP: case MAD_OP: case MADP_OP:
             // 3‑operand, likewise scalarizable if all lanes match
-            is_scalar = scalar_detector_helper(pI, inst, m_thread,
+            is_scalar = scalar_detector_helper(m_reloc_tbl, pI, inst, m_thread,
                                                 m_warp_size, warpId,
                                                 /*num_src=*/3);
             break;

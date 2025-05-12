@@ -3121,7 +3121,7 @@ void opndcoll_rfu_t::allocate_cu( unsigned port_num )
                      if (port_num >= (m_in_ports.size() - m_shader->get_config()->gpgpu_operand_collector_num_in_ports_scalsp)) {
                       if (inst && !(*inst)->empty() && (*inst)->scalar_flag) {
                         allocated = cu->allocate(inp.m_in[i],inp.m_out[i], true);
-                        printf("[SCAL_CU]: operand collector quick path for scalar RF read.\n");
+                        printf("[SCAL OPND COLL ALLOC]: operand collector allocate, pc=%d, warp_id=%d.\n", (*inst)->pc, (*inst)->warp_id());
                         // scalar RF read requests list
                         const op_t *src = cu->get_operands();
                         for( unsigned i=0; i<MAX_REG_OPERANDS*2; i++) {
@@ -3278,8 +3278,13 @@ void opndcoll_rfu_t::collector_unit_t::dispatch()
 void opndcoll_rfu_t::collector_unit_t::dispatch_scal()
 {
    assert( m_not_ready.none() );
-   // move from in_port directly
-   m_output_register->move_in();
+   std::list<warp_inst_t *>::iterator it = m_scalar_inst_buffer.begin();
+   while (it != m_scalar_inst_buffer.end()) {
+     warp_inst_t *inst = *it;
+     m_output_register->move_in(inst);
+     it = m_scalar_inst_buffer.erase(it);
+     printf("[SCAL OPND COLL DISPATCH]: PC=%d, warp_id=%d.\n", inst->pc, inst->warp_id());
+   }
    m_free=true;
    m_output_register = NULL;
    for( unsigned i=0; i<MAX_REG_OPERANDS*2;i++)
