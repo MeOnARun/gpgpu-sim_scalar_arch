@@ -879,17 +879,22 @@ void core_t::scalar_detector(warp_inst_t &inst, unsigned warpId)
         //
         // 1) ALU (Type=1) – two‑src integer/logical/unary ops
         //
-        case ABS_OP: case ADD_OP: case ADDP_OP: case ADDC_OP:
-        case AND_OP: case ANDN_OP: case BFE_OP: case BFI_OP:
-        case BFIND_OP: case BREV_OP: case CLZ_OP: case CNOT_OP:
-        case MOV_OP: case NOT_OP: case OR_OP: case ORN_OP:
-        case POPC_OP: case PRMT_OP: case REM_OP: case SELP_OP:
-        case SETP_OP: case SET_OP: case SHL_OP: case SHR_OP:
-        case SLCT_OP: case SUB_OP: case SUBC_OP: case XOR_OP:
-            // these have 1 or 2 sources; detect scalar if all lanes agree
+        case ABS_OP: case NEG_OP: case NOT_OP: case MOV_OP:
+        case CNOT_OP: case CLZ_OP: case POPC_OP: case BFIND_OP:
             is_scalar = scalar_detector_helper(m_reloc_tbl, pI, inst, m_thread,
                                                 m_warp_size, warpId,
-                                                /*num_src=*/2);
+                                                /*num_src=*/1);
+            break;
+            
+        case ADD_OP: case ADDP_OP: case ADDC_OP:
+        case AND_OP: case ANDN_OP: case BFE_OP: case BFI_OP:
+        case BREV_OP: case MIN_OP: case MAX_OP:
+        case OR_OP:  case ORN_OP: case XOR_OP:
+        case SHL_OP: case SHR_OP: case SLCT_OP:
+        case SUB_OP: case SUBC_OP:
+            is_scalar = scalar_detector_helper(m_reloc_tbl, pI, inst, m_thread,
+                                            m_warp_size, warpId,
+                                            /*num_src=*/2);
             break;
       
         //
