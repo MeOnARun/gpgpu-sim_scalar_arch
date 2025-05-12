@@ -833,7 +833,7 @@ bool scalar_detector_helper(std::map<const symbol*, bool> *m_reloc_tbl, const pt
       if (!inst.active(t)) continue;
       unsigned tid = m_warp_size * warpId + t;
       for (int i = 0; i < num_src; i++) {
-        if (srcs[i].is_const()) continue;
+        if (srcs[i].is_literal()) continue;
         if (m_reloc_tbl[warpId][srcs[i].get_symbol()]) continue;
         ptx_reg_t val = thread[tid]->get_operand_value(srcs[i], srcs[i], pI->get_type(), thread[tid], 1);
         if (!ref_set[i]) {
