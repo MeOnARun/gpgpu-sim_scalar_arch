@@ -821,6 +821,9 @@ private:
          m_warp_id = -1;
          m_num_banks = 0;
          m_bank_warp_shift = 0;
+         // CS534: add for scalar opnd coll
+         m_scalar_inst_buffer = NULL;
+         has_scalar_inst = false;
       }
       // accessors
       bool ready() const;
@@ -855,6 +858,8 @@ private:
       bool is_free(){return m_free;}
       // CS534: add scal dispatch
       void dispatch_scal();
+      // CS534: added members for scalar operand collector
+      bool has_scalar_inst;
 
    private:
       bool m_free;
@@ -862,7 +867,7 @@ private:
       unsigned m_warp_id;
       warp_inst_t  *m_warp;
       // CS534: added members for scalar operand collector
-      std::list<warp_inst_t*> m_scalar_inst_buffer;
+      warp_inst_t *m_scalar_inst_buffer;
       register_set* m_output_register; // pipeline register to issue to when ready
       op_t *m_src_op;
       std::bitset<MAX_REG_OPERANDS*2> m_not_ready;
