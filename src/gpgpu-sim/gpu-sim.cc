@@ -345,8 +345,8 @@ void shader_core_config::reg_options(class OptionParser * opp)
                            "0");
     // CS534: Add scalar operand collector out ports
     option_parser_register(opp, "-gpgpu_operand_collector_num_out_ports_scalsp", OPT_INT32, &gpgpu_operand_collector_num_out_ports_scalsp,
-                           "number of collector unit in ports (default = 1)", 
-                           "1");
+                           "number of collector unit in ports (default = 2)", 
+                           "2");
     option_parser_register(opp, "-gpgpu_coalesce_arch", OPT_INT32, &gpgpu_coalesce_arch, 
                             "Coalescing arch (default = 13, anything else is off for now)", 
                             "13");
@@ -362,7 +362,7 @@ void shader_core_config::reg_options(class OptionParser * opp)
     option_parser_register(opp, "-gpgpu_pipeline_widths", OPT_CSTR, &pipeline_widths_string,
                             "Pipeline widths "
                             // CS534: default add scalar sp stage
-                            "ID_OC_SP,ID_OC_SFU,ID_OC_MEM,ID_OC_SCALSP,OC_EX_SP,OC_EX_SFU,OC_EX_MEM,EX_WB",
+                            "ID_OC_SP,ID_OC_SFU,ID_OC_MEM,ID_OC_SCALSP,OC_EX_SP,OC_EX_SFU,OC_EX_MEM,OC_EX_SCALSP,EX_WB",
                             "1,1,1,1,1,1,1,1" );
     option_parser_register(opp, "-gpgpu_num_sp_units", OPT_INT32, &gpgpu_num_sp_units,
                             "Number of SP units (default=1)",

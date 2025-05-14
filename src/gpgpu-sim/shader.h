@@ -547,8 +547,6 @@ public:
    {
         dispatch_ready_cu();   
         allocate_reads();
-        // CS534: add for scalar collector
-        allocate_scalar_reads();
         for( unsigned p = 0 ; p < m_in_ports.size(); p++ ) 
             allocate_cu( p );
         process_banks();
@@ -577,8 +575,6 @@ private:
    void dispatch_ready_cu();
    void allocate_cu( unsigned port );
    void allocate_reads();
-   // CS534: add for scalar collector
-   void allocate_scalar_reads();
 
    // types
 
@@ -821,9 +817,6 @@ private:
          m_warp_id = -1;
          m_num_banks = 0;
          m_bank_warp_shift = 0;
-         // CS534: add for scalar opnd coll
-         m_scalar_inst_buffer = NULL;
-         has_scalar_inst = false;
       }
       // accessors
       bool ready() const;
@@ -842,7 +835,7 @@ private:
                 unsigned log2_warp_size,
                 const core_config *config,
                 opndcoll_rfu_t *rfu ); 
-      bool allocate( register_set* pipeline_reg, register_set* output_reg, bool scalar = false );
+      bool allocate( register_set* pipeline_reg, register_set* output_reg );
 
       void collect_operand( unsigned op )
       {
@@ -855,19 +848,17 @@ private:
     	  return m_warp->get_num_regs();
       }
       void dispatch();
-      bool is_free(){return m_free;}
       // CS534: add scal dispatch
       void dispatch_scal();
+      bool is_free(){return m_free;}
       // CS534: added members for scalar operand collector
-      bool has_scalar_inst;
+      std::list<warp_inst_t*> m_scalar_inst_buffer;
 
    private:
       bool m_free;
       unsigned m_cuid; // collector unit hw id
       unsigned m_warp_id;
       warp_inst_t  *m_warp;
-      // CS534: added members for scalar operand collector
-      warp_inst_t *m_scalar_inst_buffer;
       register_set* m_output_register; // pipeline register to issue to when ready
       op_t *m_src_op;
       std::bitset<MAX_REG_OPERANDS*2> m_not_ready;

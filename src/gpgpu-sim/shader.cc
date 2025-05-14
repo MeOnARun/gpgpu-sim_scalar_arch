@@ -3076,30 +3076,28 @@ void opndcoll_rfu_t::dispatch_ready_cu()
       dispatch_unit_t &du = m_dispatch_units[p];
       collector_unit_t *cu = du.find_ready();
       if( cu ) {
-        // CS534: last ones are scalarsp dispatch units
-        if (cu->has_scalar_inst) {
-          // Stats: Can add statistics count if needed
+        // CS534: add scalar dispatch
+        if (cu->m_scalar_inst_buffer.size()) {
           cu->dispatch_scal();
+          return;
         }
-        else {
-          for(unsigned i=0;i<(cu->get_num_operands()-cu->get_num_regs());i++) {
-            if(m_shader->get_config()->gpgpu_clock_gated_reg_file){
-              unsigned active_count=0;
-              for(unsigned i=0;i<m_shader->get_config()->warp_size;i=i+m_shader->get_config()->n_regfile_gating_group){
-                for(unsigned j=0;j<m_shader->get_config()->n_regfile_gating_group;j++){
-                  if(cu->get_active_mask().test(i+j)){
-                    active_count+=m_shader->get_config()->n_regfile_gating_group;
-                    break;
-                  }
+        for(unsigned i=0;i<(cu->get_num_operands()-cu->get_num_regs());i++) {
+          if(m_shader->get_config()->gpgpu_clock_gated_reg_file){
+            unsigned active_count=0;
+            for(unsigned i=0;i<m_shader->get_config()->warp_size;i=i+m_shader->get_config()->n_regfile_gating_group){
+              for(unsigned j=0;j<m_shader->get_config()->n_regfile_gating_group;j++){
+                if(cu->get_active_mask().test(i+j)){
+                  active_count+=m_shader->get_config()->n_regfile_gating_group;
+                  break;
                 }
               }
-              m_shader->incnon_rf_operands(active_count);
-            } else {
-              m_shader->incnon_rf_operands(m_shader->get_config()->warp_size);//cu->get_active_count());
             }
+            m_shader->incnon_rf_operands(active_count);
+          } else {
+            m_shader->incnon_rf_operands(m_shader->get_config()->warp_size);//cu->get_active_count());
           }
-          cu->dispatch();
         }
+        cu->dispatch();
       }
    }
 }
@@ -3109,7 +3107,13 @@ void opndcoll_rfu_t::allocate_cu( unsigned port_num )
    input_port_t& inp = m_in_ports[port_num];
    for (unsigned i = 0; i < inp.m_in.size(); i++) {
        if( (*inp.m_in[i]).has_ready() ) {
+          // CS534: scalar inst should not enter normal operand collector
           warp_inst_t **inst = (*inp.m_in[i]).get_ready();
+          if (inst && !(*inst)->empty() && (*inst)->scalar_flag) {
+            if (port_num < (m_dispatch_units.size() - m_shader->get_config()->gpgpu_operand_collector_num_out_ports_scalsp)) {
+              return;
+            }
+          }
           //find a free cu 
           for (unsigned j = 0; j < inp.m_cu_sets.size(); j++) {
               std::vector<collector_unit_t> & cu_set = m_cus[inp.m_cu_sets[j]];
@@ -3117,21 +3121,6 @@ void opndcoll_rfu_t::allocate_cu( unsigned port_num )
               for (unsigned k = 0; k < cu_set.size(); k++) {
                   if(cu_set[k].is_free()) {
                      collector_unit_t *cu = &cu_set[k];
-                     // CS534: special process for scalar RF read
-                      if (inst && !(*inst)->empty() && (*inst)->scalar_flag) {
-                        printf("[SCAL OPND COLL ALLOC]: operand collector allocate, pc=%d, warp_id=%d.\n", (*inst)->pc, (*inst)->warp_id());
-                        allocated = cu->allocate(inp.m_in[i],inp.m_out[i], true);
-                        // scalar RF read requests list
-                        const op_t *src = cu->get_operands();
-                        for( unsigned i=0; i<MAX_REG_OPERANDS*2; i++) {
-                           const op_t &op = src[i];
-                           if( op.valid() ) {
-                            m_scalar_read_requests.push_back(op);
-                           }
-                        }
-printf("m_scalar_read_requests size = %d\n", m_scalar_read_requests.size());
-                        break;
-                      }
                      allocated = cu->allocate(inp.m_in[i],inp.m_out[i]);
                      m_arbiter.add_read_requests(cu);
                      break;
@@ -3182,21 +3171,6 @@ void opndcoll_rfu_t::allocate_reads()
   }
 } 
 
-// CS534: add for scalar collector
-void opndcoll_rfu_t::allocate_scalar_reads()
-{
-  int m_scalar_rf_ports_remaining = 2;
-  auto it = m_scalar_read_requests.begin();
-  while (it != m_scalar_read_requests.end() && m_scalar_rf_ports_remaining > 0) {
-    op_t op = *it;
-    unsigned cu = op.get_oc_id();
-    unsigned operand = op.get_operand();
-    printf("Allocate scalar reads, cu=%d,operand=%d\n", cu, operand);
-    it = m_scalar_read_requests.erase(it);
-    m_scalar_rf_ports_remaining--;
-  }
-}
-
 bool opndcoll_rfu_t::collector_unit_t::ready() const 
 { 
    return (!m_free) && m_not_ready.none() && (*m_output_register).has_free(); 
@@ -3229,12 +3203,9 @@ void opndcoll_rfu_t::collector_unit_t::init( unsigned n,
    assert(m_warp==NULL); 
    m_warp = new warp_inst_t(config);
    m_bank_warp_shift=log2_warp_size;
-   // CS534: ADD for scalar opnd coll
-   assert(m_scalar_inst_buffer==NULL);
-   m_scalar_inst_buffer = new warp_inst_t(config);
 }
 
-bool opndcoll_rfu_t::collector_unit_t::allocate( register_set* pipeline_reg_set, register_set* output_reg_set, bool scalar ) 
+bool opndcoll_rfu_t::collector_unit_t::allocate( register_set* pipeline_reg_set, register_set* output_reg_set ) 
 {
    assert(m_free);
    assert(m_not_ready.none());
@@ -3246,20 +3217,24 @@ bool opndcoll_rfu_t::collector_unit_t::allocate( register_set* pipeline_reg_set,
       for( unsigned op=0; op < MAX_REG_OPERANDS; op++ ) {
          int reg_num = (*pipeline_reg)->arch_reg.src[op]; // this math needs to match that used in function_info::ptx_decode_inst
          if( reg_num >= 0 ) { // valid register
-            m_src_op[op] = op_t( this, op, reg_num, m_num_banks, m_bank_warp_shift );
-            m_not_ready.set(op);
+            // CS534: scalar read will always be ready
+            if (!(*pipeline_reg)->scalar_flag) {
+              m_src_op[op] = op_t( this, op, reg_num, m_num_banks, m_bank_warp_shift );
+              m_not_ready.set(op);
+            }
          } else 
             m_src_op[op] = op_t();
       }
       //move_warp(m_warp,*pipeline_reg);
       // CS534: scalar collector, push to buffer
-      if (scalar) {
-        pipeline_reg_set->move_out_to(m_scalar_inst_buffer);
-        has_scalar_inst = 1;
+      if ((*pipeline_reg)->scalar_flag) {
+        warp_inst_t* empty_inst = new warp_inst_t();
+        pipeline_reg_set->move_out_to(empty_inst);
+        m_scalar_inst_buffer.push_back(empty_inst);
+        printf("[SCALAR OPND COLL ALLOC]: cuid=%d, pc=%d, warp_id=%d.\n", m_cuid, (empty_inst)->pc, (empty_inst)->warp_id());
       }
       else {
         pipeline_reg_set->move_out_to(m_warp);
-        has_scalar_inst = 0;
       }
       return true;
    }
@@ -3281,9 +3256,11 @@ void opndcoll_rfu_t::collector_unit_t::dispatch()
 void opndcoll_rfu_t::collector_unit_t::dispatch_scal()
 {
    assert( m_not_ready.none() );
-   printf("[SCAL OPND COLL DISPATCH]: PC=%d, warp_id=%d.\n", m_scalar_inst_buffer->pc, m_scalar_inst_buffer->warp_id());
-   m_output_register->move_in(m_scalar_inst_buffer);
-   has_scalar_inst = false;
+   warp_inst_t* inst = m_scalar_inst_buffer.front();
+   m_scalar_inst_buffer.pop_front();
+   printf("[SCALAR OPND COLL DISPATCH]: cuid=%d, PC=%d, warp_id=%d.\n", m_cuid, inst->pc, inst->warp_id());
+   m_output_register->move_in(inst);
+   delete inst;
    m_free=true;
    m_output_register = NULL;
    for( unsigned i=0; i<MAX_REG_OPERANDS*2;i++)
