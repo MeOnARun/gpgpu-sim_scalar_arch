@@ -368,9 +368,14 @@ void ptx_thread_info::get_vector_operand_values( const operand_info &op, ptx_reg
       const symbol *sym = NULL;
       sym = op.vec_symbol(idx);
       if( strcmp(sym->name().c_str(),"_") != 0) {
-         reg_map_t::iterator reg_iter = m_regs.back().find(sym);
-         assert( reg_iter != m_regs.back().end() );
-         ptx_regs[idx] = reg_iter->second;
+         // CS534: check if the register is in the scalar RF
+         if (m_core->m_reloc_tbl[warpid][sym]) {
+            ptx_regs[idx] = m_core->get_reg(sym, warpid);
+         } else {
+            reg_map_t::iterator reg_iter = m_regs.back().find(sym);
+            assert( reg_iter != m_regs.back().end() );
+            ptx_regs[idx] = reg_iter->second;
+         }
       }
    }
 }
