@@ -906,7 +906,7 @@ void scheduler_unit::cycle()
                               issued++;
                               issued_inst=true;
                               warp_inst_issued = true;
-                              printf("[SCALAR SP DISPATH] warp_id %d, opcode %d\n", warp_id, pI->op);
+                              //printf("[SCALAR SP DISPATH] warp_id %d, opcode %d\n", warp_id, pI->op);
                             }
                             else if( sp_pipe_avail && (pI->op != SFU_OP) ) {
                                 // always prefer SP pipe for operations that can use both SP and SFU pipelines
@@ -3231,7 +3231,7 @@ bool opndcoll_rfu_t::collector_unit_t::allocate( register_set* pipeline_reg_set,
         warp_inst_t* empty_inst = new warp_inst_t();
         pipeline_reg_set->move_out_to(empty_inst);
         m_scalar_inst_buffer.push_back(empty_inst);
-        printf("[SCALAR OPND COLL ALLOC]: cuid=%d, pc=%d, warp_id=%d.\n", m_cuid, (empty_inst)->pc, (empty_inst)->warp_id());
+        //printf("[SCALAR OPND COLL ALLOC]: cuid=%d, pc=%d, warp_id=%d.\n", m_cuid, (empty_inst)->pc, (empty_inst)->warp_id());
       }
       else {
         pipeline_reg_set->move_out_to(m_warp);
@@ -3258,7 +3258,7 @@ void opndcoll_rfu_t::collector_unit_t::dispatch_scal()
    assert( m_not_ready.none() );
    warp_inst_t* inst = m_scalar_inst_buffer.front();
    m_scalar_inst_buffer.pop_front();
-   printf("[SCALAR OPND COLL DISPATCH]: cuid=%d, PC=%d, warp_id=%d.\n", m_cuid, inst->pc, inst->warp_id());
+   //printf("[SCALAR OPND COLL DISPATCH]: cuid=%d, PC=%d, warp_id=%d.\n", m_cuid, inst->pc, inst->warp_id());
    m_output_register->move_in(inst);
    delete inst;
    m_free=true;

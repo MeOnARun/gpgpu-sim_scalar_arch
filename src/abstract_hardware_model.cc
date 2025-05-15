@@ -990,7 +990,7 @@ void core_t::execute_warp_inst_t(warp_inst_t &inst, unsigned warpId)
             checkExecutionStatusAndUpdate(inst,t,tid);
             if (inst.scalar_flag && !inst.scalar_executed) {
                 inst.scalar_executed = true;
-                printf("[SCALAR EXEC] PC = %u, warp = %u, only execute lane %d\n",
+                //printf("[SCALAR EXEC] PC = %u, warp = %u, only execute lane %d\n",
                     inst.pc, warpId, t);
             }
         }
