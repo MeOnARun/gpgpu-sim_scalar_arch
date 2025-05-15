@@ -233,14 +233,14 @@ void warp_inst_t::generate_mem_accesses()
 
             // step 1: compute accesses to words in banks
             // TEMPNO CS534: for scalar mem inst
-            /*bool scalar_access_processed = false;
+            //bool scalar_access_processed = false;
             for( unsigned thread=subwarp*subwarp_size; thread < (subwarp+1)*subwarp_size; thread++ ) {
                 if( !active(thread) ) 
                     continue;
                 // TEMPNO CS534: scalar mem req, only need to do 1 access for all threads
                 //   this bank_accs is used to simulate the delay in m_pipeline_regs
-                if (scalar_flag & scalar_access_processed)
-                    break;
+                //if (scalar_flag & scalar_access_processed)
+                //    break;
                 // Notes: addr for access stored when execute_inst (memreqaddr is an array)
                 //   Only atomic local mem reqs have multiple addresses (set in checkExecutionStatusAndUpdate)
                 //   So here only need to consider memreqaddr[0]
@@ -253,8 +253,8 @@ void warp_inst_t::generate_mem_accesses()
                 new_addr_type word = line_size_based_tag_func(addr,m_config->WORD_SIZE);
                 bank_accs[bank][word]++;
                 // TEMPNO CS534: update scalar processed flag
-                scalar_access_processed = true;
-            }*/
+                //scalar_access_processed = true;
+            }
 
             if (m_config->shmem_limited_broadcast) {
                 // step 2: look for and select a broadcast bank/word if one occurs
